@@ -52,7 +52,7 @@ def get_params():
                         help='set number of epochs per pass')
     parser.add_argument('--bootstrap', type=int, default=8,
                         help='number of bootstrap initialization samples')
-    parser.add_argument('--xent_weight', type=float, default=0.5,
+    parser.add_argument('--xent_weight', type=float, default=0.1,
                         help='cross-entropy loss weight for multi-loss model')
     parser.add_argument('--target_weight', type=float, default=4.0,
                         help='loss weighting for target class')
@@ -80,7 +80,7 @@ def get_params():
                         help='multiplicative factor for queries in drift sessions')
 
     # Model arguments
-    parser.add_argument('--no_initial_bn', default=True, action='store_false',
+    parser.add_argument('--no_initial_bn', default=False, action='store_true',
                         help='turn off initial batch norm layer')
     parser.add_argument('--comp_hidden', type=int, default=1024,
                         help='hidden layer size')
@@ -96,6 +96,8 @@ def get_params():
                         help='number of recurrent layers')
     parser.add_argument('--context', type=int, default=3,
                         help='context frames on both sides of the target frame')
+    parser.add_argument('--load_best', default=False, action='store_true',
+                        help='use the best model from the previous session')
 
     # Data arguments
     parser.add_argument('--feat_root', type=str, default='/data/VTD/wavlm_11k_1hr',

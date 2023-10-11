@@ -73,7 +73,7 @@ class VtdImlDataModule(LightningDataModule):
         return p_target,p_nontarget
 
     def transfer_samples(self, idxs):
-        # Convert inidices to base indices
+        # Convert given inidices to base indices. This is the only function where this is necessary.
         idxs = [self.data_test.active_idxs[ii] for ii in idxs]
         # Activate train, deactivate test
         self.data_train.activate_samples(idxs)
