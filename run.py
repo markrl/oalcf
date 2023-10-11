@@ -115,7 +115,13 @@ def main():
         os.system(f'rm -rf {ckpt_dir}') # Delete old checkpoints
         test_results = trainer.test(module, data_module)
         if not params.debug:
-            write_session(out_file, data_module.current_batch, test_results)
+            fps.append(int(test_results[0]['test/fps']))
+            fns.append(int(test_results[0]['test/fns']))
+            ps.append(int(test_results[0]['test/ps']))
+            ns.append(int(test_results[0]['test/ns']))
+            metric = None if len(al_methods)>1 or mm=='rand' else metrics_dict[mm]
+            write_session(out_file, data_module.current_batch, test_results, (fps,fns,ps,ns), 
+                            data_module.get_class_balance(), len(data_module.data_train), metric)
         data_module.next_batch()
     if not params.debug:
         torch.save(module.model.state_dict(), os.path.join(out_dir, 'state_dict.pt'))
