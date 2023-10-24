@@ -119,7 +119,7 @@ def write_session(out_file, current_batch, test_results, error_counts, class_bal
     fps, fns, ps, ns = error_counts
     p_target,p_nontarget = class_balance
     f = open(out_file, 'a')
-    f.write(f'{current_batch-1}')
+    f.write(f'{current_batch}')
     dcf = test_results[0]['test/dcf']
     fnr = test_results[0]['test/fnr']
     fpr = test_results[0]['test/fpr']

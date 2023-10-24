@@ -7,7 +7,6 @@ from pytorch_lightning import LightningModule
 
 from src.model import CompClassModel
 from utils.utils import ContrastiveLoss, DcfLoss
-from sklearn.metrics import auc, precision_recall_curve, roc_curve
 
 from pdb import set_trace
 
@@ -24,7 +23,6 @@ class VtdModule(LightningModule):
         self.contrast_criterion = ContrastiveLoss(weight=params.target_weight)
         self.params = params
         self.save_hyperparameters()
-        self.al_method = None
         self.val_fns = 0
         self.val_fps = 0
         self.val_ns = 0
@@ -45,9 +43,9 @@ class VtdModule(LightningModule):
         x1,y1,x2,y2 = batch
         embed1, y_hat, _ = self(x1)
         if self.params.xent_weight != 1.0:
-            embed2 = self(x2)[0]
-            loss = self.params.xent_weight*self.criterion(y_hat,y1) \
-                    + (1-self.params.xent_weight)*self.contrast_criterion(embed1,embed2,y1,y2)
+            embed2, y_hat2, _ = self(x2)
+            loss = self.params.xent_weight**2*(self.criterion(y_hat,y1)+self.criterion(y_hat2,y2)) \
+                    + self.contrast_criterion(embed1,embed2,y1,y2)
         else:
             loss = self.criterion(y_hat,y1)
         self.log('train/loss', loss.item(), on_step=False, on_epoch=True)
@@ -78,20 +76,10 @@ class VtdModule(LightningModule):
         dcf = 0.25*fpr + 0.75*fnr
         acc = 1-(self.val_fns+self.val_fps)/(self.val_ps+self.val_ns)
 
-        # scores = torch.cat(self.val_scores, 0).detach().cpu().numpy()
-        # labels = torch.cat(self.val_labels, 0).detach().cpu().numpy()
-        # precisions, recalls, _ = precision_recall_curve(labels, scores)
-        # sorted_idxs = np.argsort(recalls)
-        # recalls = recalls[sorted_idxs]
-        # precisions = precisions[sorted_idxs]
-        # fprs, tprs, thresholds = roc_curve(labels, scores)
-        # auprc = auc(recalls, precisions)
-
         self.log('val/fnr', fnr)
         self.log('val/fpr', fpr)
         self.log('val/dcf', dcf, prog_bar=True)
         self.log('val/acc', acc)
-        # self.log('val/auprc', auprc)
         self.log('val/ps', float(self.val_ps))
         self.log('val/fps', float(self.val_fps))
         self.log('val/ns', float(self.val_ns))
@@ -126,20 +114,10 @@ class VtdModule(LightningModule):
         dcf = 0.25*fpr + 0.75*fnr
         acc = 1-(self.test_fns+self.test_fps)/(self.test_ps+self.test_ns)
 
-        # scores = torch.cat(self.test_scores, 0).detach().cpu().numpy()
-        # labels = torch.cat(self.test_labels, 0).detach().cpu().numpy()
-        # precisions, recalls, _ = precision_recall_curve(labels, scores)
-        # sorted_idxs = np.argsort(recalls)
-        # recalls = recalls[sorted_idxs]
-        # precisions = precisions[sorted_idxs]
-        # fprs, tprs, thresholds = roc_curve(labels, scores)
-        # auprc = auc(recalls, precisions)
-
         self.log('test/fnr', fnr)
         self.log('test/fpr', fpr)
         self.log('test/dcf', dcf)
         self.log('test/acc', acc)
-        # self.log('test/auprc', auprc)
         self.log('test/ps', float(self.test_ps))
         self.log('test/fps', float(self.test_fps))
         self.log('test/ns', float(self.test_ns))

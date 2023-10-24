@@ -7,6 +7,7 @@ import scipy.stats as stats
 from copy import deepcopy
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
+from sklearn.cluster import KMeans
 
 from pdb import set_trace
 

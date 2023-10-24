@@ -70,7 +70,7 @@ def get_params():
                         help='multiplier for differentiable softmax in DCF loss')
     parser.add_argument('--ddm', type=str, default=None,
                         help='drift detection method type; `nn`, `nc` or None')
-    parser.add_argument('--ddm_thresh', type=float, default=3.0,
+    parser.add_argument('--ddm_thresh', type=float, default=3.1,
                         help='ddm threshold for continued sampling')
     parser.add_argument('--ddm_reduction', type=str, default='mean',
                         help='ddm reduction method (statistic)')

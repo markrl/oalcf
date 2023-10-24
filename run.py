@@ -93,26 +93,31 @@ def main():
     data_module.next_batch()
     if params.auto_weight and params.class_loss=='xent':
         update_xent(module, data_module)
+    os.system(f'rm -rf {ckpt_dir}') # Delete old checkpoints
     trainer.fit(module, data_module)
 
     # Move into OAL training
     ps, ns = [], []
     fps, fns = [], []
     mm = params.combo if params.combo is not None else al_methods[0]
-    while data_module.current_batch <= data_module.n_batches:
-        print(f'STARTING {data_module.get_current_session_name()} ({data_module.current_batch}/{data_module.n_batches})')
-        idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, params.n_queries)
+    while data_module.current_batch < data_module.n_batches:
+        print(f'STARTING {data_module.get_current_session_name()} ({data_module.current_batch+1}/{data_module.n_batches})')
+        if ddm is not None:
+            dist = ddm.get_dist(data_module.data_train, data_module.data_test)
+            mult = 1 if dist > params.ddm_thresh else params.drift_mult
+        else:
+            mult = 1
+        idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, params.n_queries*mult)
+        data_module.transfer_samples(idxs_dict[mm])
+        reset_trainer(trainer)
         if base_state_dict is not None:
             module.model.load_state_dict(base_state_dict)
-        idxs = idxs_dict[mm]
-        data_module.transfer_samples(idxs)
-        reset_trainer(trainer)
         if params.auto_weight and params.class_loss=='xent':
             update_xent(module, data_module)
+        os.system(f'rm -rf {ckpt_dir}') # Delete old checkpoints
         trainer.fit(module, data_module)
         if not params.debug and params.load_best:
             module = VtdModule.load_from_checkpoint(ckpt_dir+'/best.ckpt')
-        os.system(f'rm -rf {ckpt_dir}') # Delete old checkpoints
         test_results = trainer.test(module, data_module)
         if not params.debug:
             fps.append(int(test_results[0]['test/fps']))

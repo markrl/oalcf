@@ -19,7 +19,7 @@ class VtdImlDataModule(LightningDataModule):
         self.ds = BaseImlData(params)
         self.data_train = ImlData(params, self.ds)
         self.data_test = ImlData(params, self.ds)
-        self.current_batch = 0
+        self.current_batch = -1
         self.n_batches = int(len(self.ds)/params.samples_per_batch)
 
     def setup(self, stage):
@@ -30,7 +30,7 @@ class VtdImlDataModule(LightningDataModule):
             dataset=self.data_train,
             batch_size=self.params.batch_size,
             num_workers=self.params.nworkers,
-            shuffle=True,
+            shuffle=False,
         )
 
     def val_dataloader(self):
@@ -80,14 +80,14 @@ class VtdImlDataModule(LightningDataModule):
         self.data_test.deactivate_samples(idxs)
 
     def next_batch(self):
-        if self.current_batch>=self.n_batches:
+        if self.current_batch>=self.n_batches-1:
             self.current_batch += 1
             return
         # Activate the next batch
+        self.current_batch += 1
         self.data_test.deactivate_all()
         self.data_test.activate_samples([nn for nn in range(self.current_batch*self.params.samples_per_batch, 
                                                             (self.current_batch+1)*self.params.samples_per_batch)])
-        self.current_batch += 1
 
         # Check for bootstrap samples
         self.data_test.deactivate_samples(self.data_train.active_idxs)
@@ -99,17 +99,19 @@ class VtdImlDataModule(LightningDataModule):
         return len(self.data_train)
 
     def save_active_files(self, path):
-        file_list = [os.path.basename(self.ds.feat_files[int(ii/self.params.samples_per_batch)])[:-3]
+        file_list = [os.path.basename(self.ds.feat_files[int(ii/self.params.samples_per_batch)])[:-4].replace('_{}', '')
                 for ii in self.data_train.active_idxs]
         sample_list = [str(ii%self.params.samples_per_batch) for ii in self.data_train.active_idxs]
-        lines = [f'{ff} {ss}' for ff,ss in zip(file_list, sample_list)]
+        lines = [f'{ff},{ss}' for ff,ss in zip(file_list, sample_list)]
         content = '\n'.join(lines) + '\n'
         with open(path, 'w') as f:
             f.write(content)
 
     def get_current_session_name(self):
+        if len(self.data_test)==0:
+            return 'NO BATCH LOADED'
         file_idx = int(self.data_test.active_idxs[0] / self.params.samples_per_batch)
-        se_name = self.ds.feat_files[file_idx].replace('_wavlm', '').replace('.npy', '')
+        se_name = self.ds.feat_files[file_idx].replace('_{}', '').replace('.npy', '')
         return se_name.upper()
     
 
@@ -120,14 +122,16 @@ class BaseImlData(Dataset):
         super().__init__()
         self.params = params
         rm, mc = params.env_name.split('_')
-        self.feat_roots = params.feat_root.split(',')
-        self.feat_files = os.listdir(os.path.join(self.feat_roots[0]))
-        self.feat_files = [ff for ff in self.feat_files if (rm in ff and mc in ff)]
-        self.feat_files.sort()
-
         self.label_files = glob.glob(os.path.join(params.ann_root, '*.npy'))
         self.label_files = [ff for ff in self.label_files if rm in ff]
         self.label_files.sort()
+        
+        self.feat_roots = params.feat_root.split(',')
+        self.feat_names = [os.listdir(rr)[0].split('_')[3] for rr in self.feat_roots]
+        self.feat_files = []
+        for ff in self.label_files:
+            rm,se,splt = os.path.basename(ff).split('_')
+            self.feat_files.append('_'.join((rm, se, mc, '{}', splt)))
 
     def __len__(self):
         return len(self.label_files)*self.params.samples_per_batch
@@ -142,8 +146,8 @@ class BaseImlData(Dataset):
         sample_idx = index % self.params.samples_per_batch
         start_idx = np.maximum(0, sample_idx-self.params.context)
         stop_idx = np.minimum(self.params.samples_per_batch, sample_idx+self.params.context+1)
-        feat = np.concatenate([np.load(os.path.join(rr,self.feat_files[file_idx]))[start_idx:stop_idx] 
-                            for rr in self.feat_roots], axis=1)
+        feat = np.concatenate([np.load(os.path.join(rr,self.feat_files[file_idx].format(nn)))[start_idx:stop_idx] 
+                            for rr,nn in zip(self.feat_roots, self.feat_names)], axis=1)
         if sample_idx<self.params.context:
             n_zeros = self.params.context-sample_idx
             feat = np.concatenate([np.zeros((n_zeros, feat.shape[1])), feat], axis=0)
@@ -245,4 +249,3 @@ if __name__=='__main__':
     data_module.next_batch()
     data_module.transfer_samples([3,5])
     print(data_module.get_current_session_name())
-    # data_module.save_active_files('/home/marklind/test.txt')
