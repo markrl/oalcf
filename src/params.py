@@ -52,7 +52,7 @@ def get_params():
                         help='set number of epochs per pass')
     parser.add_argument('--bootstrap', type=int, default=8,
                         help='number of bootstrap initialization samples')
-    parser.add_argument('--xent_weight', type=float, default=0.1,
+    parser.add_argument('--xent_weight', type=float, default=0.09,
                         help='cross-entropy loss weight for multi-loss model')
     parser.add_argument('--target_weight', type=float, default=4.0,
                         help='loss weighting for target class')
@@ -61,7 +61,7 @@ def get_params():
     parser.add_argument('--reset_weights', default=False, action='store_true',
                         help='reset model weights every pass')
     parser.add_argument('--combo', type=str, default=None,
-                        help='combination method: `rank`, `metric` or None')
+                        help='combination method: `rank`, `plateau`, `split`, `rand` or None')
     parser.add_argument('--thresh', type=float, default=0.9,
                         help='threshold for the plateau combo method')
     parser.add_argument('--class_loss', type=str, default='xent',
@@ -98,6 +98,8 @@ def get_params():
                         help='context frames on both sides of the target frame')
     parser.add_argument('--load_best', default=False, action='store_true',
                         help='use the best model from the previous session')
+    parser.add_argument('--fill_gaps', default=False, action='store_true',
+                        help='apply gap filling')
 
     # Data arguments
     parser.add_argument('--feat_root', type=str, default='/data/VTD/wavlm_11k_1hr',

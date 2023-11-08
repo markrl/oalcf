@@ -6,7 +6,7 @@ import torch.nn as nn
 from pytorch_lightning import LightningModule
 
 from src.model import CompClassModel
-from utils.utils import ContrastiveLoss, DcfLoss
+from utils.utils import ContrastiveLoss, DcfLoss, raw_score_gapfiller
 
 from pdb import set_trace
 
@@ -44,7 +44,7 @@ class VtdModule(LightningModule):
         embed1, y_hat, _ = self(x1)
         if self.params.xent_weight != 1.0:
             embed2, y_hat2, _ = self(x2)
-            loss = self.params.xent_weight**2*(self.criterion(y_hat,y1)+self.criterion(y_hat2,y2)) \
+            loss = self.params.xent_weight*(self.criterion(y_hat,y1)+self.criterion(y_hat2,y2)) \
                     + self.contrast_criterion(embed1,embed2,y1,y2)
         else:
             loss = self.criterion(y_hat,y1)

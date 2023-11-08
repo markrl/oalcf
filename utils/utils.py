@@ -98,6 +98,14 @@ def reset_trainer(trainer):
     trainer.callbacks[0].wait_count = 0
     trainer.callbacks[0].stopped_epoch = 0
     trainer.callbacks[0].best_score = torch.tensor(torch.inf)
+    trainer.callbacks[3].best_model_score = None
+    trainer.callbacks[3].best_k_models = {}
+    trainer.callbacks[3].kth_best_model_path = ''
+    trainer.callbacks[3].kth_value = torch.tensor(torch.inf)
+    trainer.callbacks[3]._last_global_step_saved = 29
+    trainer.callbacks[3]._last_time_checked = None
+    trainer.callbacks[3].current_score = None
+    trainer.callbacks[3].best_model_path = ''
 
 def update_xent(module, data_module):
     labels = torch.LongTensor(data_module.ds.labels)[torch.LongTensor(data_module.data_train.active_idxs)]
@@ -107,15 +115,17 @@ def update_xent(module, data_module):
     nontarget_weight = len(labels) / (n_nontarget*2)
     module.criterion = torch.nn.NLLLoss(weight=torch.tensor([nontarget_weight, target_weight]))
 
-def write_header(out_file, al_methods):
+def write_header(out_file, al_methods, ddm_exists):
     f = open(out_file, 'w')
-    if al_methods[0]=='rand' or len(al_methods)>1:
-        f.write('pass,dcf,fnr,fpr,ns,ps,fns,fps,p_target,p_nontarget,n_samples,cum_dcf\n')
-    else:
-        f.write('pass,dcf,fnr,fpr,ns,ps,fns,fps,p_target,p_nontarget,n_samples,cum_dcf,metric\n')
+    f.write('pass,dcf,fnr,fpr,ns,ps,fns,fps,p_target,p_nontarget,n_samples,cum_dcf')
+    if al_methods[0]!='rand' and len(al_methods)<=1:
+        f.write(',metric')
+    if ddm_exists:
+        f.write(',drift')
+    f.write('\n')
     f.close()
 
-def write_session(out_file, current_batch, test_results, error_counts, class_balance, n_samples, metric):
+def write_session(out_file, current_batch, test_results, error_counts, class_balance, n_samples, metric, drift_dist):
     fps, fns, ps, ns = error_counts
     p_target,p_nontarget = class_balance
     f = open(out_file, 'a')
@@ -130,8 +140,56 @@ def write_session(out_file, current_batch, test_results, error_counts, class_bal
     fpr = torch.sum(torch.LongTensor(fps))/torch.sum(torch.LongTensor(ns)) if torch.sum(torch.LongTensor(ns))>0 else 0
     cum_dcf = 0.75*fnr + 0.25*fpr
     f.write(f',{cum_dcf:.4f}')
-    if metric is None:
-        f.write('\n')
-    else:
-        f.write(f',{metric:.4f}\n')
+    if metric is not None:
+        f.write(f',{metric:.4f}')
+    if drift_dist is not None:
+        f.write(f',{drift_dist:.4f}')
+    f.write('\n')
     f.close()
+
+def raw_score_gapfiller(data, threshold=0.0, kernsize=6):
+    # :param scores: (time_steps,)
+    # :param kernsize: int.
+    #   default: int(gapcloser / shift) = int(33 / 5) = 6
+    # :return data: (time_steps,) A vector of gapfilled raw scores.
+    epsilon_to_push_boundary_points_above_threshold = 0.1
+
+    ii = 0
+    while ii < len(data):
+        # Iterate until we find a segment that is not speech.
+        if data[ii] >= threshold:
+            ii += 1
+            continue
+
+        machine_segment_start = ii
+        machine_segment_end = ii + 1
+
+        # Iterate until we find a segment that is no longer machine.
+        while machine_segment_end < len(data) and data[machine_segment_end] <= threshold:
+            machine_segment_end += 1
+            
+        if machine_segment_end - machine_segment_start <= kernsize:
+            # We want to pull up the intermediate non-speech values
+            # to resemble something closer to a speech value.
+            # We will shift the intermediate values up so that the minimum
+            # is now at some epsilon. Then, we scale the values so that its
+            # maximum equals whichever endpoint is largest. Finally, we set 
+            # any value that ended up below that epsilon to be equal to that
+            # epsilon.
+
+            # N.B.: sanitized_machine_segment_end is only necessary here because we access
+            # data[machine_segment_end] explicitly whereas we had been accessing it as a slice.
+            # When slicing, the end index is taken to be end_index - 1 and we wouldn't
+            # run into this problem.
+            
+            sanitized_machine_segment_end = machine_segment_end if machine_segment_end < len(data) else len(data) - 1
+            new_intermediate_values = data[machine_segment_start:machine_segment_end] + torch.abs(torch.amin(data[machine_segment_start:machine_segment_end])) + epsilon_to_push_boundary_points_above_threshold
+            new_intermediate_values /= torch.amax(new_intermediate_values)
+            new_intermediate_values *= torch.amax([data[machine_segment_start], data[sanitized_machine_segment_end]])
+            new_intermediate_values[new_intermediate_values < epsilon_to_push_boundary_points_above_threshold] = epsilon_to_push_boundary_points_above_threshold
+            
+            data[machine_segment_start:machine_segment_end] = new_intermediate_values
+
+        ii = machine_segment_end
+    
+    return data

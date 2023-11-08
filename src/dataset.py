@@ -56,7 +56,7 @@ class VtdImlDataModule(LightningDataModule):
         n_target = self.params.bootstrap-n_nontarget
         target_idxs, nontarget_idxs = [], []
         ii = 0
-        while len(target_idxs)<n_target or len(nontarget_idxs)<n_nontarget:
+        while ii<len(self.ds) and (len(target_idxs)<n_target or len(nontarget_idxs)<n_nontarget):
             label = self.ds.get_label(ii)
             if label==0 and len(nontarget_idxs)<n_nontarget:
                 nontarget_idxs.append(ii)
@@ -161,6 +161,15 @@ class BaseImlData(Dataset):
         sample_idx = index % self.params.samples_per_batch
         return int(np.load(self.label_files[file_idx])[sample_idx])
 
+    def get_class_balance(self):
+        labels = []
+        for ii in range(len(self)):
+            labels.append(self.get_label(ii))
+        p_target = np.mean(labels)
+        p_nontarget = 1-p_target
+        print(f'{p_target*100:.2f}% target')
+        print(f'{p_nontarget*100:.2f}% nontarget')
+
 
 class ImlData(Dataset):
     def __init__(self, params, base_ds):
@@ -249,3 +258,4 @@ if __name__=='__main__':
     data_module.next_batch()
     data_module.transfer_samples([3,5])
     print(data_module.get_current_session_name())
+    data_module.ds.get_class_balance()
