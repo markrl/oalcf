@@ -129,9 +129,16 @@ class BaseImlData(Dataset):
         self.feat_roots = params.feat_root.split(',')
         self.feat_names = [os.listdir(rr)[0].split('_')[3] for rr in self.feat_roots]
         self.feat_files = []
+        bad_files = []
         for ff in self.label_files:
             rm,se,splt = os.path.basename(ff).split('_')
-            self.feat_files.append('_'.join((rm, se, mc, '{}', splt)))
+            feat_file = '_'.join((rm, se, mc, '{}', splt))
+            self.feat_files.append(feat_file)
+            if not np.all([os.path.exists(os.path.join(rr, feat_file).format(nn)) for rr,nn in zip(self.feat_roots, self.feat_names)]):
+                bad_files.append((ff, feat_file))
+        for lf,ff in bad_files:
+            self.label_files.remove(lf)
+            self.feat_files.remove(ff)
 
     def __len__(self):
         return len(self.label_files)*self.params.samples_per_batch

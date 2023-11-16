@@ -108,11 +108,9 @@ def reset_trainer(trainer):
     trainer.callbacks[3].best_model_path = ''
 
 def update_xent(module, data_module):
-    labels = torch.LongTensor(data_module.ds.labels)[torch.LongTensor(data_module.data_train.active_idxs)]
-    n_target = torch.sum(labels)
-    n_nontarget = len(labels) - n_target
-    target_weight = len(labels) / (n_target*2)
-    nontarget_weight = len(labels) / (n_nontarget*2)
+    p_target, p_nontarget = data_module.get_class_balance()
+    target_weight = 1 / (p_target*2)
+    nontarget_weight = 1 / (p_nontarget*2)
     module.criterion = torch.nn.NLLLoss(weight=torch.tensor([nontarget_weight, target_weight]))
 
 def write_header(out_file, al_methods, ddm_exists):

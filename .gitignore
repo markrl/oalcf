@@ -162,3 +162,4 @@ cython_debug/
 checkpoints/
 lightning_logs/
 output/
+plotting/plot_out/

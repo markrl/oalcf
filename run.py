@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 import os
 import sys
 from copy import deepcopy
@@ -24,6 +25,7 @@ def main():
     if params.ddm is None:
         ddm = None
     else:
+        drift_list = []
         if params.ddm=='nc':
             ddm = NcDdm(n_clusters=params.n_queries, reduction=params.ddm_reduction, dist_fn=params.ddm_dist_fn)
         else:
@@ -102,14 +104,45 @@ def main():
     mm = 'combo' if params.combo is not None else al_methods[0]
     while data_module.current_batch < data_module.n_batches:
         print(f'STARTING {data_module.get_current_session_name()} ({data_module.current_batch+1}/{data_module.n_batches})')
-        if ddm is not None:
+        if params.budget_path is not None:
+            dist = None
+            n_queries = int(np.genfromtxt(os.path.join(params.budget_path, params.env_name, 'budget.txt'))[data_module.current_batch])
+            idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, n_queries)
+            data_module.transfer_samples(idxs_dict[mm])
+        elif ddm is not None:
             dist = ddm.get_dist(data_module.data_train, data_module.data_test)
-            mult = params.drift_mult if dist > params.ddm_thresh else 1
+            if params.ddm_usage=='mult':
+                mult = params.drift_mult if dist>params.ddm_thresh else 1
+                idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, params.n_queries*mult)
+                data_module.transfer_samples(idxs_dict[mm])
+            elif params.ddm_usage=='thresh':
+                min_dist = dist
+                wait_time = 0
+                metrics_dict = {mm:0}
+                while dist>params.ddm_thresh and len(data_module.data_test)>680 and wait_time<params.ddm_patience:
+                    idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, params.n_queries)
+                    data_module.transfer_samples(idxs_dict[mm])
+                    dist = ddm.get_dist(data_module.data_train, data_module.data_test)
+                    wait_time += 1
+                    if dist < min_dist:
+                        min_dist = dist
+                        wait_time = 0
+            elif params.ddm_usage=='stats':
+                if len(drift_list)==0:
+                    n_queries = params.n_queries
+                else:
+                    drift_mean = torch.mean(torch.tensor(drift_list))
+                    mult = dist/drift_mean
+                    n_queries = int(params.n_queries*mult)
+                drift_list.append(dist)
+                idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, n_queries)
+                data_module.transfer_samples(idxs_dict[mm])
+            else:
+                exit()
         else:
             dist = None
-            mult = 1
-        idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, params.n_queries*mult)
-        data_module.transfer_samples(idxs_dict[mm])
+            idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, params.n_queries)
+            data_module.transfer_samples(idxs_dict[mm])
         reset_trainer(trainer)
         if base_state_dict is not None:
             module.model.load_state_dict(base_state_dict)

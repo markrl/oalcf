@@ -78,6 +78,12 @@ def get_params():
                         help='ddm distance function')
     parser.add_argument('--drift_mult', type=int, default=5,
                         help='multiplicative factor for queries in drift sessions')
+    parser.add_argument('--ddm_usage', type=str, default='mult',
+                        help='how the ddm is applied; `thresh`, `stats`, or `mult`')
+    parser.add_argument('--ddm_patience', type=int, default=10,
+                        help='patience for drift reduction')
+    parser.add_argument('--budget_path', type=str, default=None,
+                        help='load a predefined budget from this directory')
 
     # Model arguments
     parser.add_argument('--no_initial_bn', default=False, action='store_true',

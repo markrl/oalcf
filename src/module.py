@@ -20,7 +20,7 @@ class VtdModule(LightningModule):
             self.criterion = nn.NLLLoss(weight=torch.tensor([1, params.target_weight]))
         else:
             self.criterion = DcfLoss(fnr_weight=0.75, smax_weight=params.dsmax_mult)
-        self.contrast_criterion = ContrastiveLoss(weight=params.target_weight)
+        self.contrast_criterion = ContrastiveLoss()#weight=params.target_weight)
         self.params = params
         self.save_hyperparameters()
         self.val_fns = 0
