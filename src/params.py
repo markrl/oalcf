@@ -42,6 +42,16 @@ def get_params():
                         help='use lr scheduler')
     parser.add_argument('--lrs_patience', type=int, default=10,
                         help='lr scheduler patience')
+    parser.add_argument('--xent_weight', type=float, default=0.09,
+                        help='cross-entropy loss weight for multi-loss model')
+    parser.add_argument('--target_weight', type=float, default=4.0,
+                        help='loss weighting for target class')
+    parser.add_argument('--class_loss', type=str, default='xent',
+                        help='classification loss type: `xent` or `dcf`')
+    parser.add_argument('--dsmax_mult', type=float, default=0.0,
+                        help='multiplier for differentiable softmax in DCF loss')
+
+    # IML/AL arguments
     parser.add_argument('--al_methods', type=str, default='smax',
                         help='''list of active learning methods applied (separated by commas). 
                             `None` indicates no active learning.
@@ -52,10 +62,6 @@ def get_params():
                         help='set number of epochs per pass')
     parser.add_argument('--bootstrap', type=int, default=8,
                         help='number of bootstrap initialization samples')
-    parser.add_argument('--xent_weight', type=float, default=0.09,
-                        help='cross-entropy loss weight for multi-loss model')
-    parser.add_argument('--target_weight', type=float, default=4.0,
-                        help='loss weighting for target class')
     parser.add_argument('--auto_weight', default=False, action='store_true',
                         help='automatically change cross-entropy weighting based on training distribution')
     parser.add_argument('--reset_weights', default=False, action='store_true',
@@ -64,10 +70,6 @@ def get_params():
                         help='combination method: `rank`, `plateau`, `split`, `rand` or None')
     parser.add_argument('--thresh', type=float, default=0.9,
                         help='threshold for the plateau combo method')
-    parser.add_argument('--class_loss', type=str, default='xent',
-                        help='classification loss type: `xent` or `dcf`')
-    parser.add_argument('--dsmax_mult', type=float, default=0.0,
-                        help='multiplier for differentiable softmax in DCF loss')
     parser.add_argument('--ddm', type=str, default=None,
                         help='drift detection method type; `nn`, `nc` or None')
     parser.add_argument('--ddm_thresh', type=float, default=3.1,
@@ -84,6 +86,8 @@ def get_params():
                         help='patience for drift reduction')
     parser.add_argument('--budget_path', type=str, default=None,
                         help='load a predefined budget from this directory')
+    parser.add_argument('--adapt_distr', type=float, default=None,
+                        help='desired target class representation in adaptation data')
 
     # Model arguments
     parser.add_argument('--no_initial_bn', default=False, action='store_true',
@@ -108,7 +112,7 @@ def get_params():
                         help='apply gap filling')
 
     # Data arguments
-    parser.add_argument('--feat_root', type=str, default='/data/VTD/wavlm_11k_1hr',
+    parser.add_argument('--feat_root', type=str, default='/data/VTD/wavlm_11k_1hr/,/data/VTD/xvectors_11k_1hr',
                         help='root directory for features')
     parser.add_argument('--ann_root', type=str, default='/data/VTD/VTD_labels/all_labels_1hr',
                         help='path to annotations')

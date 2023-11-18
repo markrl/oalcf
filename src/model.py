@@ -45,6 +45,7 @@ class CompModel(nn.Module):
         dim *= params.context*2+1
 
         self.bn_layer = nn.BatchNorm1d(dim)
+        # self.bn_layer = nn.InstanceNorm1d(dim)
         self.mlp = MLP(dim, params.comp_hidden, hiddims=[params.comp_hidden]*params.comp_layers,
                     activate_hid=nn.LeakyReLU(),
                     activate_out=nn.Linear(params.comp_hidden, params.embed_dim),

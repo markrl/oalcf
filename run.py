@@ -19,9 +19,15 @@ from utils.ddm import NcDdm, NnDdm
 from pdb import set_trace
 
 def main():
-    # Get parameters
+    # Set pytorch precision
+    torch.set_float32_matmul_precision('medium')
+    # Get and handle parameters
     params = get_params()
+    if params.overfit_batches >= 1:
+        params.overfit_batches = int(params.overfit_batches)
+    # Initialize query selection strategy object
     sm = StrategyManager(params)
+    # Initialize DDM
     if params.ddm is None:
         ddm = None
     else:
@@ -30,9 +36,7 @@ def main():
             ddm = NcDdm(n_clusters=params.n_queries, reduction=params.ddm_reduction, dist_fn=params.ddm_dist_fn)
         else:
             ddm = NnDdm(reduction=params.ddm_reduction, dist_fn=params.ddm_dist_fn)
-    if params.overfit_batches >= 1:
-        params.overfit_batches = int(params.overfit_batches)
-    # Set up directory
+    # Set up output directory
     out_dir = os.path.join('output', params.run_name)
     if os.path.exists(out_dir):
         os.system(f'rm -rf {out_dir}')
@@ -41,9 +45,16 @@ def main():
     command = ' '.join([os.path.basename(sys.executable)] + sys.argv)
     with open(os.path.join(out_dir, 'command.txt'), 'w') as f:
         f.write(command)
-    # Set pytorch precision
-    torch.set_float32_matmul_precision('medium')
-    # Instantiate trainer
+    # Set up variables and output file
+    if params.al_methods[-1] == ',':
+        params.al_methods = params.al_methods[:-1]
+    al_methods = params.al_methods.split(',')
+    al_methods.sort()
+    if not params.debug:
+        out_file = os.path.join(out_dir, 'scores.csv')
+        write_header(out_file, al_methods, (ddm is not None))
+    
+    # Set up trainer callbacks
     callbacks = []
     ckpt_dir = 'checkpoints/'+params.run_name
     if os.path.exists(ckpt_dir):
@@ -62,8 +73,10 @@ def main():
         min_delta=params.min_delta
     ))
     
+    # Initialize lightning data module and lightning module
     data_module = VtdImlDataModule(params)
     module = VtdModule(params)
+    # Instantiate trainer
     trainer = Trainer(
         callbacks=callbacks,
         fast_dev_run=params.debug,
@@ -77,33 +90,33 @@ def main():
         num_sanity_val_steps=1 if params.debug else 0
     )
 
-    # Set up variables and output file
-    if params.al_methods[-1] == ',':
-        params.al_methods = params.al_methods[:-1]
-    al_methods = params.al_methods.split(',')
-    al_methods.sort()
-    if not params.debug:
-        out_file = os.path.join(out_dir, 'scores.csv')
-        write_header(out_file, al_methods, (ddm is not None))
-
-    # Form bootstrap corpus
-    data_module.label_boot()
+    # Prepare base model if resetting weights every batch
     if params.reset_weights:
         base_state_dict = module.model.state_dict()
     else:
         base_state_dict = None
+    
+    # Form bootstrap corpus
+    data_module.label_boot()
     data_module.next_batch()
+    # Update class weights if indicated
     if params.auto_weight and params.class_loss=='xent':
         update_xent(module, data_module)
-    os.system(f'rm -rf {ckpt_dir}/best.ckpt') # Delete old checkpoints
+    # Delete old checkpoints
+    os.system(f'rm -rf {ckpt_dir}/best.ckpt') 
+    # Train on bootstrap corpus
     trainer.fit(module, data_module)
 
-    # Move into OAL training
+    ### IML LOOP ###
+    # Initialize metric tracking lists
     ps, ns = [], []
     fps, fns = [], []
     mm = 'combo' if params.combo is not None else al_methods[0]
+    # Loop through all batches
     while data_module.current_batch < data_module.n_batches:
+        # Print current session name and number
         print(f'STARTING {data_module.get_current_session_name()} ({data_module.current_batch+1}/{data_module.n_batches})')
+        # Handle DDM, budgeting, query selection, etc. (TODO: Refactor and make cleaner)
         if params.budget_path is not None:
             dist = None
             n_queries = int(np.genfromtxt(os.path.join(params.budget_path, params.env_name, 'budget.txt'))[data_module.current_batch])
@@ -143,16 +156,27 @@ def main():
             dist = None
             idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, params.n_queries)
             data_module.transfer_samples(idxs_dict[mm])
+
+        # Handle exception where a batch only contains 1 sample
+        data_module.drop_last = True if len(data_module)%params.batch_size==1 else False
+        # Reset trainer for the new batch
         reset_trainer(trainer)
+        # Reload base model if resetting every batch
         if base_state_dict is not None:
             module.model.load_state_dict(base_state_dict)
+        # Update class weighting if indicated
         if params.auto_weight and params.class_loss=='xent':
             update_xent(module, data_module)
-        os.system(f'rm -rf {ckpt_dir}/best.ckpt') # Delete old checkpoints
+        # Delete old checkpoints
+        os.system(f'rm -rf {ckpt_dir}/best.ckpt')
+        # Train model on adaptation pool
         trainer.fit(module, data_module)
+        # Load model with from best epoch for this batch if indicated
         if not params.debug and params.load_best:
             module = VtdModule.load_from_checkpoint(ckpt_dir+'/best.ckpt')
+        # Get evaluation metrics from this batch
         test_results = trainer.test(module, data_module)
+        # Write results to file
         if not params.debug:
             fps.append(int(test_results[0]['test/fps']))
             fns.append(int(test_results[0]['test/fns']))
@@ -161,7 +185,9 @@ def main():
             metric = None if len(al_methods)>1 or mm=='rand' else metrics_dict[mm]
             write_session(out_file, data_module.current_batch, test_results, (fps,fns,ps,ns), 
                             data_module.get_class_balance(), len(data_module.data_train), metric, dist)
+        # Load next batch
         data_module.next_batch()
+    # Save final model and AL samples
     if not params.debug:
         torch.save(module.model.state_dict(), os.path.join(out_dir, 'state_dict.pt'))
         data_module.save_active_files(os.path.join(out_dir, 'al_samples.txt'))

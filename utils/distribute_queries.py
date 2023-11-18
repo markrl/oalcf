@@ -5,7 +5,7 @@ import numpy as np
 
 def main(inp_dir):
     avg_samples = 8
-    min_samples = 2
+    min_samples = 4
     subdirs = os.listdir(inp_dir)
     for subdir in subdirs:
         sheet = pd.read_csv(os.path.join(inp_dir, subdir, 'scores.csv'))

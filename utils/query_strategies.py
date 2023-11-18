@@ -14,6 +14,7 @@ from pdb import set_trace
 class StrategyManager:
     def __init__(self, params):
         self.combo = params.combo
+        self.p_target = params.adapt_distr
         if params.combo=='clf':
             with open('clf.p', 'rb') as f:
                 self.clf = pickle.load(f)
@@ -27,47 +28,39 @@ class StrategyManager:
                 self.criterion = DcfLoss()
 
     def select_queries(self, data_module, method_list, module, n_queries):
-        logits = None
+        self.logits = self.extract_logits(data_module, module)
         idxs_dict = {}
         rank_dict = {}
         metrics_dict = {}
         if 'rand' in method_list:
             idxs_dict['rand'] = torch.randperm(data_module.unlabeled_len())[:n_queries]
         if 'smax' in method_list:
-            if logits is None:
-                logits = extract_logits(data_module, module)
-            smax_out = torch.max(F.softmax(logits, dim=-1), dim=-1)[0]
+            smax_out = torch.max(F.softmax(self.logits, dim=-1), dim=-1)[0]
             sorted_idxs = torch.sort(smax_out)[1]
             metrics_dict['smax'] = torch.mean(smax_out)
             if self.combo:
                 rank_dict['smax'] = sorted_idxs
             else:
-                idxs_dict['smax'] = sorted_idxs[:n_queries]
+                idxs_dict['smax'] = self.get_top_n(sorted_idxs, n_queries, data_module)
         if 'necs' in method_list:
-            if logits is None:
-                logits = extract_logits(data_module, module)
-            neg_energy = -torch.logsumexp(logits, dim=-1)
+            neg_energy = -torch.logsumexp(self.logits, dim=-1)
             sorted_idxs = torch.sort(neg_energy, descending=True)[1]
             metrics_dict['necs'] = torch.mean(neg_energy)
             if self.combo:
                 rank_dict['necs'] = sorted_idxs
             else:
-                idxs_dict['necs'] = sorted_idxs[:n_queries]
+                idxs_dict['necs'] = self.get_top_n(sorted_idxs, n_queries, data_module)
         if 'ent' in method_list:
-            if logits is None:
-                logits = extract_logits(data_module, module)
-            smax_out = F.softmax(logits, dim=-1)
+            smax_out = F.softmax(self.logits, dim=-1)
             entropy = -torch.sum(smax_out*torch.log(smax_out), dim=-1)
             sorted_idxs = torch.sort(entropy, descending=True)[1]
             metrics_dict['ent'] = torch.mean(entropy)
             if self.combo:
                 rank_dict['ent'] = sorted_idxs
             else:
-                idxs_dict['ent'] = sorted_idxs[:n_queries]
+                idxs_dict['ent'] = self.get_top_n(sorted_idxs, n_queries, data_module)
         if 'egl' in method_list:
-            if logits is None:
-                logits = extract_logits(data_module, module)
-            smax_out = F.softmax(logits, dim=-1)
+            smax_out = F.softmax(self.logits, dim=-1)
             grad_lens = extract_grad_lens(data_module, module, self.criterion)
             egl = torch.sum(smax_out*grad_lens, dim=1)
             sorted_idxs = torch.sort(egl, descending=True)[1]
@@ -75,7 +68,7 @@ class StrategyManager:
             if self.combo:
                 rank_dict['egl'] = sorted_idxs
             else:
-                idxs_dict['egl'] = sorted_idxs[:n_queries]
+                idxs_dict['egl'] = self.get_top_n(sorted_idxs, n_queries, data_module)
         if 'pert' in method_list:
             change_percentages = perturbate(data_module, module)
             sorted_idxs = torch.sort(change_percentages, descending=True)[1]
@@ -83,7 +76,7 @@ class StrategyManager:
             if self.combo:
                 rank_dict['pert'] = sorted_idxs
             else:
-                idxs_dict['pert'] = sorted_idxs[:n_queries]
+                idxs_dict['pert'] = self.get_top_n(sorted_idxs, n_queries, data_module)
         if 'cover' in method_list:
             idxs_dict['cover'] = cover_distribution(data_module, n_queries)
             metrics_dict['cover'] = 1
@@ -92,7 +85,7 @@ class StrategyManager:
             all_ranks = [rank_dict[kk] for kk in rank_dict.keys()]
             combo_rank = torch.sum(torch.stack(all_ranks,dim=0),dim=0)
             sorted_idxs = torch.sort(combo_rank)[1]
-            idxs_dict['combo'] = sorted_idxs[:n_queries]
+            idxs_dict['combo'] = self.get_top_n(sorted_idxs, n_queries, data_module)
         elif self.combo=='plateau':
             if metrics_dict['smax'] > self.thresh:
                 idxs_dict['combo'] = rank_dict['necs'][:n_queries]
@@ -122,22 +115,41 @@ class StrategyManager:
             exit()
         return idxs_dict, metrics_dict
 
-
-def extract_logits(data_module, module):
-    model = module.model
-    model.eval()
-    if hasattr(data_module, 'unlabeled_dataloader'):
-        loader = data_module.unlabeled_dataloader()
-    else:
-        loader = data_module.test_dataloader()
-    with torch.no_grad():
-        if torch.cuda.is_available():
-            model = model.cuda()
-            logits = [model(batch[0].cuda())[-1] for batch in loader]
+    def get_top_n(self, sorted_idxs, n_queries, data_module):
+        if self.p_target is None:
+            return sorted_idxs[:n_queries]
         else:
-            logits = [model(batch[0])[-1] for batch in loader]
-    logits = torch.cat(logits, dim=0).cpu()
-    return logits
+            preds = torch.argmax(F.softmax(self.logits, dim=-1), dim=-1)
+            t_idxs = torch.where(preds==1)[0]
+            n_idxs = torch.where(preds==0)[0]
+            M_t = torch.sum(preds)
+            M_n = len(preds) - M_t
+            N_t,N_n = data_module.get_class_counts()
+            L_t = int(torch.round(self.p_target*(N_t+N_n+n_queries)-N_t))
+            if L_t > M_t:
+                L_t = M_t
+            elif n_queries-L_t > M_n:
+                L_t = n_queries - M_n
+            L_n = n_queries-L_t
+            rank_t = torch.tensor([ii for ii in sorted_idxs if ii in t_idxs])
+            rank_n = torch.tensor([ii for ii in sorted_idxs if ii in n_idxs])
+            return torch.cat([rank_t[:L_t], rank_n[:L_n]], dim=0)
+
+    def extract_logits(self, data_module, module):
+        model = module.model
+        model.eval()
+        if hasattr(data_module, 'unlabeled_dataloader'):
+            loader = data_module.unlabeled_dataloader()
+        else:
+            loader = data_module.test_dataloader()
+        with torch.no_grad():
+            if torch.cuda.is_available():
+                model = model.cuda()
+                logits = [model(batch[0].cuda())[-1] for batch in loader]
+            else:
+                logits = [model(batch[0])[-1] for batch in loader]
+        logits = torch.cat(logits, dim=0).cpu()
+        return logits
 
 def extract_grad_lens(data_module, module, criterion):
     model = module.model

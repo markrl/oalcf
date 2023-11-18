@@ -21,6 +21,7 @@ class VtdImlDataModule(LightningDataModule):
         self.data_test = ImlData(params, self.ds)
         self.current_batch = -1
         self.n_batches = int(len(self.ds)/params.samples_per_batch)
+        self.drop_last = False
 
     def setup(self, stage):
         return
@@ -31,6 +32,7 @@ class VtdImlDataModule(LightningDataModule):
             batch_size=self.params.batch_size,
             num_workers=self.params.nworkers,
             shuffle=False,
+            drop_last=self.drop_last,
         )
 
     def val_dataloader(self):
@@ -65,11 +67,17 @@ class VtdImlDataModule(LightningDataModule):
             ii += 1
         idxs = nontarget_idxs + target_idxs
         self.data_train.activate_samples(idxs)
+
+    def get_class_counts(self):
+        labels = torch.FloatTensor([self.ds.get_label(ii) for ii in self.data_train.active_idxs])
+        n_target = torch.sum(labels)
+        n_nontarget = len(labels)-n_target
+        return n_target,n_nontarget
     
     def get_class_balance(self):
-        labels = torch.FloatTensor([self.ds.get_label(ii) for ii in self.data_train.active_idxs])
-        p_target = torch.mean(labels)
-        p_nontarget = 1 - p_target
+        n_target,n_nontarget = self.get_class_counts()
+        p_target = n_target/(n_target+n_nontarget)
+        p_nontarget = n_nontarget/(n_target+n_nontarget)
         return p_target,p_nontarget
 
     def transfer_samples(self, idxs):
@@ -245,7 +253,7 @@ class ImlData(Dataset):
     def __getitem__(self, index):
         index = self.active_idxs[index]
         feat1, label1 = self.base_ds[index]
-        idx2 = self.active_idxs[torch.randint(0,len(self),(1,))[0]]
+        idx2 = self.active_idxs[np.random.randint(low=0, high=len(self))]
         feat2, label2 = self.base_ds[idx2]
         return feat1, label1, feat2, label2
 
