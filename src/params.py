@@ -57,7 +57,7 @@ def get_params():
                             `None` indicates no active learning.
                             options: `rand,ent,smax,necs`''')
     parser.add_argument('--n_queries', type=int, default=8,
-                        help='number of active learning queries allotted per pass')
+                        help='number of active learning queries allotted per pass/batch')
     parser.add_argument('--epochs_per_pass', type=int, default=None,
                         help='set number of epochs per pass')
     parser.add_argument('--bootstrap', type=int, default=8,
@@ -79,7 +79,7 @@ def get_params():
     parser.add_argument('--ddm_dist_fn', type=str, default=None,
                         help='ddm distance function')
     parser.add_argument('--drift_mult', type=int, default=5,
-                        help='multiplicative factor for queries in drift sessions')
+                        help='multiplicative factor for queries in drifting batches')
     parser.add_argument('--ddm_usage', type=str, default='mult',
                         help='how the ddm is applied; `thresh`, `stats`, or `mult`')
     parser.add_argument('--ddm_patience', type=int, default=10,
@@ -88,6 +88,10 @@ def get_params():
                         help='load a predefined budget from this directory')
     parser.add_argument('--adapt_distr', type=float, default=None,
                         help='desired target class representation in adaptation data')
+    parser.add_argument('--separate_class_al', default=False, action='store_true',
+                        help='select AL samples for target and nontarget classes separately')
+    parser.add_argument('--min_al_samples', type=int, default=2,
+                        help='minimum number of AL samples per batch')
 
     # Model arguments
     parser.add_argument('--no_initial_bn', default=False, action='store_true',

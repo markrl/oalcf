@@ -111,6 +111,7 @@ def main():
     # Initialize metric tracking lists
     ps, ns = [], []
     fps, fns = [], []
+    budget = 0
     mm = 'combo' if params.combo is not None else al_methods[0]
     # Loop through all batches
     while data_module.current_batch < data_module.n_batches:
@@ -153,9 +154,28 @@ def main():
             else:
                 exit()
         else:
-            dist = None
-            idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, params.n_queries)
-            data_module.transfer_samples(idxs_dict[mm])
+            if params.separate_class_al:
+                dist = None
+                budget += params.n_queries
+                sm.est_class = 'target'
+                sm.min_samples = params.min_al_samples
+                idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, budget)
+                data_module.transfer_samples(idxs_dict[mm])
+                print(f'Target queries: {len(idxs_dict[mm])}')
+                budget -= len(idxs_dict[mm])
+                sm.est_class = 'nontarget'
+                sm.min_samples = np.maximum(0, sm.min_samples-len(idxs_dict[mm]))
+                idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, budget)
+                data_module.transfer_samples(idxs_dict[mm])
+                print(f'Nontarget queries: {len(idxs_dict[mm])}')
+                p_t, p_n = data_module.get_class_balance()
+                print(f'P_t: {p_t:.4f}')
+                budget -= len(idxs_dict[mm])
+                print(f'Remaining budget: {budget}')
+            else:
+                dist = None
+                idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, params.n_queries)
+                data_module.transfer_samples(idxs_dict[mm])
 
         # Handle exception where a batch only contains 1 sample
         data_module.drop_last = True if len(data_module)%params.batch_size==1 else False

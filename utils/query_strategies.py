@@ -15,6 +15,8 @@ class StrategyManager:
     def __init__(self, params):
         self.combo = params.combo
         self.p_target = params.adapt_distr
+        self.est_class = 'both'
+        self.min_samples = 0
         if params.combo=='clf':
             with open('clf.p', 'rb') as f:
                 self.clf = pickle.load(f)
@@ -119,21 +121,44 @@ class StrategyManager:
         if self.p_target is None:
             return sorted_idxs[:n_queries]
         else:
-            preds = torch.argmax(F.softmax(self.logits, dim=-1), dim=-1)
-            t_idxs = torch.where(preds==1)[0]
-            n_idxs = torch.where(preds==0)[0]
-            M_t = torch.sum(preds)
-            M_n = len(preds) - M_t
-            N_t,N_n = data_module.get_class_counts()
-            L_t = int(torch.round(self.p_target*(N_t+N_n+n_queries)-N_t))
-            if L_t > M_t:
-                L_t = M_t
-            elif n_queries-L_t > M_n:
-                L_t = n_queries - M_n
-            L_n = n_queries-L_t
-            rank_t = torch.tensor([ii for ii in sorted_idxs if ii in t_idxs])
-            rank_n = torch.tensor([ii for ii in sorted_idxs if ii in n_idxs])
-            return torch.cat([rank_t[:L_t], rank_n[:L_n]], dim=0)
+            if self.est_class=='both':
+                preds = torch.argmax(F.softmax(self.logits, dim=-1), dim=-1)
+                t_idxs = torch.where(preds==1)[0]
+                n_idxs = torch.where(preds==0)[0]
+                M_t = len(t_idxs)
+                M_n = len(n_idxs)
+                N_t,N_n = data_module.get_class_counts()
+                L_t = int(torch.round(self.p_target*(N_t+N_n+n_queries)-N_t))
+                upper_bound = torch.min(torch.tensor([n_queries, M_t]))
+                L_t = int(torch.clamp(torch.tensor(L_t), 0, upper_bound))
+                L_n = n_queries-L_t
+                rank_t = torch.tensor([ii for ii in sorted_idxs if ii in t_idxs])
+                rank_n = torch.tensor([ii for ii in sorted_idxs if ii in n_idxs])
+                return torch.cat([rank_t[:L_t], rank_n[:L_n]], dim=0).long()
+            elif self.est_class=='target':
+                preds = torch.argmax(F.softmax(self.logits, dim=-1), dim=-1)
+                t_idxs = torch.where(preds==1)[0]
+                M_t = len(t_idxs)
+                N_t,N_n = data_module.get_class_counts()
+                L_t = (self.p_target*(N_t+N_n)-N_t)/(1-self.p_target)
+                L_t = int(torch.round(L_t))
+                upper_bound = torch.min(torch.tensor([n_queries, M_t]))
+                lower_bound = torch.min(torch.tensor([self.min_samples, upper_bound]))
+                L_t = int(torch.clamp(torch.tensor(L_t), lower_bound, upper_bound))
+                rank_t = torch.tensor([ii for ii in sorted_idxs if ii in t_idxs])
+                return rank_t[:L_t]
+            elif self.est_class=='nontarget':
+                preds = torch.argmax(F.softmax(self.logits, dim=-1), dim=-1)
+                n_idxs = torch.where(preds==0)[0]
+                M_n = len(n_idxs)
+                N_t,N_n = data_module.get_class_counts()
+                L_n = ((1-self.p_target)*(N_t+N_n)-N_n)/self.p_target
+                L_n = int(torch.round(L_n))
+                upper_bound = torch.min(torch.tensor([n_queries, M_n]))
+                lower_bound = torch.min(torch.tensor([self.min_samples, upper_bound]))
+                L_n = int(torch.clamp(torch.tensor(L_n), lower_bound, upper_bound))
+                rank_n = torch.tensor([ii for ii in sorted_idxs if ii in n_idxs])
+                return rank_n[:L_n]
 
     def extract_logits(self, data_module, module):
         model = module.model
