@@ -119,11 +119,11 @@ def main():
         print(f'STARTING {data_module.get_current_session_name()} ({data_module.current_batch+1}/{data_module.n_batches})')
         # Handle DDM, budgeting, query selection, etc. (TODO: Refactor and make cleaner)
         if params.budget_path is not None:
-            dist = None
             n_queries = int(np.genfromtxt(os.path.join(params.budget_path, params.env_name, 'budget.txt'))[data_module.current_batch])
-            idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, n_queries)
-            data_module.transfer_samples(idxs_dict[mm])
-        elif ddm is not None:
+        else:
+            n_queries = params.n_queries
+
+        if ddm is not None:
             dist = ddm.get_dist(data_module.data_train, data_module.data_test)
             if params.ddm_usage=='mult':
                 mult = params.drift_mult if dist>params.ddm_thresh else 1
@@ -156,7 +156,7 @@ def main():
         else:
             if params.separate_class_al:
                 dist = None
-                budget += params.n_queries
+                budget += n_queries
                 sm.est_class = 'target'
                 sm.min_samples = params.min_al_samples
                 idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, budget)
