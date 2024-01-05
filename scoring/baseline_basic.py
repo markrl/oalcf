@@ -4,8 +4,8 @@ import numpy as np
 import pandas as pd
 
 def main(score_path):
-    if 'scores.csv' not in score_path:
-        score_file = os.path.join(score_path, 'scores.csv')
+    if 'baseine_ood_scores.csv' not in score_path:
+        score_file = os.path.join(score_path, 'baseline_ood_scores.csv')
     else:
         score_file = score_path
     sheet = pd.read_csv(score_file)

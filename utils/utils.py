@@ -116,7 +116,7 @@ def update_xent(module, data_module):
 def write_header(out_file, al_methods, ddm_exists):
     f = open(out_file, 'w')
     f.write('pass,dcf,fnr,fpr,ns,ps,fns,fps,p_target,p_nontarget,n_samples,cum_dcf')
-    if al_methods[0]!='rand' and len(al_methods)<=1:
+    if len(al_methods)==1 and al_methods[0]!='rand':
         f.write(',metric')
     if ddm_exists:
         f.write(',drift')

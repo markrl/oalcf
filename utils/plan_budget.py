@@ -144,6 +144,41 @@ def skewed_distribution(out_dir, a):
         out_file = os.path.join(out_dir, subdir, 'budget.txt')
         np.savetxt(out_file, n_samples)
 
+def specific_sessions(out_dir, se_list):
+    if '.' in se_list:
+        se_list = se_list.split(',')
+        se_list = [float(ss) for ss in se_list]
+    else:
+        se_list = se_list.split(',')
+        se_list = [int(ss) for ss in se_list]
+
+    if 'budgets/' not in out_dir:
+        out_dir = os.path.join('budgets', out_dir)
+    os.system(f'rm -rf {out_dir}')
+    os.mkdir(out_dir)
+    avg_samples = 8
+    inp_dir = 'output/vtd_best'
+    subdirs = os.listdir(inp_dir)
+    for ii,subdir in enumerate(subdirs):
+        sheet = pd.read_csv(os.path.join(inp_dir, subdir, 'scores.csv'))
+        n_sessions = len(sheet)
+        total_samples = avg_samples*n_sessions
+        per_session = int(total_samples/len(se_list))
+        per_session = np.minimum(per_session, 711)
+        n_samples = np.zeros(n_sessions)
+        if type(se_list[0])==float:
+            ses = np.array([int(n_sessions*ss) for ss in se_list])
+        else:
+            ses = np.array(se_list)
+        n_samples[ses] = per_session
+        diff = total_samples-np.sum(n_samples)
+        n_samples[ses[0]+1] += diff
+        print(n_samples)
+
+        os.mkdir(os.path.join(out_dir, subdir))
+        out_file = os.path.join(out_dir, subdir, 'budget.txt')
+        np.savetxt(out_file, n_samples)        
+
 def oracle(out_dir):
     if 'budgets/' not in out_dir:
         out_dir = os.path.join('budgets', out_dir)
@@ -194,3 +229,5 @@ if __name__=='__main__':
         skewed_distribution(sys.argv[2], float(sys.argv[3]))
     elif sys.argv[1]=='oracle':
         oracle(sys.argv[2])
+    elif sys.argv[1]=='sessions':
+        specific_sessions(sys.argv[2], sys.argv[3])

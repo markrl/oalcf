@@ -10,8 +10,8 @@ def main(file_list):
     ps, ns, fps, fns = [], [], [], []
     n_samples, n_adapt, n_target = [], [], []
     for ff in file_list:
-        if 'scores.csv' not in ff:
-            ff = os.path.join(ff, 'scores.csv')
+        if 'baseline_ood_scores.csv' not in ff:
+            ff = os.path.join(ff, 'baseline_ood_scores.csv')
         sheet = pd.read_csv(ff)
         ps.append(np.sum(sheet['ps']))
         ns.append(np.sum(sheet['ns']))
@@ -23,7 +23,8 @@ def main(file_list):
     fnr = np.sum(fns)/np.sum(ps)
     fpr = np.sum(fps)/np.sum(ns)
     dcf = 0.25*fpr + 0.75*fnr
-    imlm = 1-((np.sum(fps)+np.sum(n_adapt))/np.sum(ns) + 10*np.sum(fns)/np.sum(ps))
+    total_adapt = np.sum(np.unique(n_adapt))
+    imlm = 1-((np.sum(fps)+total_adapt)/np.sum(ns) + 10*np.sum(fns)/np.sum(ps))
     p_adapt = np.sum(n_adapt)/np.sum(n_samples)*100
     p_target = np.sum(n_target)/np.sum(n_adapt)*100
     print('DCF\tFNR\tFPR\t% adapt\t% targ\tIMLM')
