@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from pytorch_lightning.trainer.states import TrainerFn, TrainerStatus
 
+from pdb import set_trace
+
 def logits2neg_energy(logits, T=1.0):
     neg_energy_score = -T*torch.logsumexp(logits/T, dim=1)
     return neg_energy_score
@@ -40,11 +42,34 @@ def euclidean_distance(x0, x1):
 
 
 class DcfLoss(torch.nn.Module):
-    def __init__(self, fnr_weight=0.75, smax_weight=0):
+    def __init__(self, fnr_weight=0.75, smax_weight=0, learn_mult=False, learn_error_weight=False):
         super(DcfLoss, self).__init__()
-        self.alpha = fnr_weight
+        self.alpha = nn.Parameter(torch.tensor(fnr_weight).float(), requires_grad=learn_error_weight)
         self.beta = smax_weight
         self.smax = torch.nn.Softmax(dim=-1)
+        self.mult = nn.Parameter(torch.tensor(1.).float(), requires_grad=learn_mult)
+
+    def forward(self, x, y):
+        '''
+        x: Log of class posterior probabilities (on the interval [-inf,inf])
+        y: Labels (0 or 1)
+        '''
+        self.alpha.data = torch.clamp(self.alpha.data, min=0.05, max=0.95)
+        x = torch.exp(x)
+        if self.beta>0:
+            x = self.smax(self.beta*self.mult*x)
+        expected_fnr = torch.dot(x[:,0],y*1.0)/torch.sum(y) if torch.sum(y)>0 else 0
+        expected_fpr = torch.dot(x[:,1],(1.0-y))/torch.sum(1-y) if torch.sum(1-y)>0 else 0
+        dcf = self.alpha*expected_fnr + (1-self.alpha)*expected_fpr
+        return dcf
+
+
+class ImlmLoss(torch.nn.Module):
+    def __init__(self, smax_weight=0, learn_mult=False):
+        super(ImlmLoss, self).__init__()
+        self.beta = smax_weight
+        self.smax = torch.nn.Softmax(dim=-1)
+        self.mult = nn.Parameter(torch.tensor(1.).float(), requires_grad=learn_mult)
 
     def forward(self, x, y):
         '''
@@ -53,11 +78,11 @@ class DcfLoss(torch.nn.Module):
         '''
         x = torch.exp(x)
         if self.beta>0:
-            x = self.smax(self.beta*x)
-        expected_fnr = torch.dot(x[:,0],y*1.0)/torch.sum(y) if torch.sum(y)>0 else 0
-        expected_fpr = torch.dot(x[:,1],(1.0-y))/torch.sum(1-y) if torch.sum(1-y)>0 else 0
-        dcf = self.alpha*expected_fnr + (1-self.alpha)*expected_fpr
-        return dcf
+            x = self.smax(self.beta*self.mult*x)
+        expected_neg_cost = torch.dot(x[:,0],y*1.0)/torch.sum(y) if torch.sum(y)>0 else 0
+        expected_pos_cost = torch.dot(x[:,1],(1.0-y))/len(y)
+        imlm = expected_pos_cost + expected_neg_cost
+        return imlm
 
 
 class FocalLoss(nn.Module):
@@ -115,7 +140,7 @@ def update_xent(module, data_module):
 
 def write_header(out_file, al_methods, ddm_exists):
     f = open(out_file, 'w')
-    f.write('pass,dcf,fnr,fpr,ns,ps,fns,fps,p_target,p_nontarget,n_samples,cum_dcf')
+    f.write('pass,pre_dcf,pre_fnr,pre_fpr,dcf,fnr,fpr,ns,ps,pre_fns,pre_fps,fns,fps,p_target,p_nontarget,n_samples,cum_pre_dcf,cum_dcf')
     if len(al_methods)==1 and al_methods[0]!='rand':
         f.write(',metric')
     if ddm_exists:
@@ -124,16 +149,24 @@ def write_header(out_file, al_methods, ddm_exists):
     f.close()
 
 def write_session(out_file, current_batch, test_results, error_counts, class_balance, n_samples, metric, drift_dist):
-    fps, fns, ps, ns = error_counts
-    p_target,p_nontarget = class_balance
+    pre_fps, pre_fns, fps, fns, ps, ns = error_counts
+    p_target, p_nontarget = class_balance
     f = open(out_file, 'a')
     f.write(f'{current_batch}')
+    pre_fnr = pre_fns[-1]/ps[-1] if ps[-1]>0 else 0
+    pre_fpr = pre_fps[-1]/ns[-1] if ns[-1]>0 else 0
+    pre_dcf = 0.75*pre_fnr + 0.25*pre_fpr
     dcf = test_results[0]['test/dcf']
     fnr = test_results[0]['test/fnr']
     fpr = test_results[0]['test/fpr']
+    f.write(f',{pre_dcf:.4f},{pre_fnr:.4f},{pre_fpr:.4f}')
     f.write(f',{dcf:.4f},{fnr:.4f},{fpr:.4f}')
-    f.write(f',{ns[-1]:d},{ps[-1]:d},{fns[-1]:d},{fps[-1]:d}')
+    f.write(f',{ns[-1]:d},{ps[-1]:d},{pre_fns[-1]:d},{pre_fps[-1]:d},{fns[-1]:d},{fps[-1]:d}')
     f.write(f',{p_target:.4f},{p_nontarget:.4f},{n_samples:d}')
+    pre_fnr = torch.sum(torch.LongTensor(pre_fns))/torch.sum(torch.LongTensor(ps)) if torch.sum(torch.LongTensor(ps))>0 else 0
+    pre_fpr = torch.sum(torch.LongTensor(pre_fps))/torch.sum(torch.LongTensor(ns)) if torch.sum(torch.LongTensor(ns))>0 else 0
+    cum_pre_dcf = 0.75*pre_fnr + 0.25*pre_fpr
+    f.write(f',{cum_pre_dcf:.4f}')
     fnr = torch.sum(torch.LongTensor(fns))/torch.sum(torch.LongTensor(ps)) if torch.sum(torch.LongTensor(ps))>0 else 0
     fpr = torch.sum(torch.LongTensor(fps))/torch.sum(torch.LongTensor(ns)) if torch.sum(torch.LongTensor(ns))>0 else 0
     cum_dcf = 0.75*fnr + 0.25*fpr

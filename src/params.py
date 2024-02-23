@@ -50,6 +50,10 @@ def get_params():
                         help='classification loss type: `xent` or `dcf`')
     parser.add_argument('--dsmax_mult', type=float, default=0.0,
                         help='multiplier for differentiable softmax in DCF loss')
+    parser.add_argument('--learn_mult', default=False, action='store_true',
+                        help='learn dsmax multiplier')
+    parser.add_argument('--learn_error_weight', default=False, action='store_true',
+                        help='learn the error weighting for DCF loss')
     parser.add_argument('--auto_weight', default=False, action='store_true',
                         help='automatically change cross-entropy weighting based on training distribution')
 

@@ -16,7 +16,7 @@ def main(score_path):
     fns = np.sum(sheet['fns'])
     ns = np.sum(sheet['ns'])
     ps = np.sum(sheet['ps'])
-    imlm = 1-((fps+n_samples)/ns + 10*fns/ps)
+    imlm = (fps+n_samples)/ns + fns/ps
     fnr = fns/ps
     fpr = fps/ns
     p_samples = n_samples/(ns+ps+n_samples)*100

@@ -99,6 +99,7 @@ def main():
     # Form bootstrap corpus
     data_module.label_boot()
     data_module.next_batch()
+    module.n_train = len(data_module)
     # Update class weights if indicated
     if params.auto_weight and params.class_loss=='xent':
         update_xent(module, data_module)
@@ -111,12 +112,20 @@ def main():
     # Initialize metric tracking lists
     ps, ns = [], []
     fps, fns = [], []
+    pre_fps, pre_fns = [], []
     budget = 0
     mm = 'combo' if params.combo is not None else al_methods[0]
     # Loop through all batches
     while data_module.current_batch < data_module.n_batches:
         # Print current session name and number
         print(f'STARTING {data_module.get_current_session_name()} ({data_module.current_batch+1}/{data_module.n_batches})')
+        # Get prequential evaluation metrics from this batch
+        test_results = trainer.test(module, data_module)
+        # Save results
+        if not params.debug:
+            pre_fps.append(int(test_results[0]['test/fps']))
+            pre_fns.append(int(test_results[0]['test/fns']))
+
         # Handle DDM, budgeting, query selection, etc. (TODO: Refactor and make cleaner)
         if params.budget_path is not None:
             n_queries = int(np.genfromtxt(os.path.join(params.budget_path, params.env_name, 'budget.txt'))[data_module.current_batch])
@@ -192,7 +201,7 @@ def main():
         # Load model with from best epoch for this batch if indicated
         if not params.debug and params.load_best:
             module = VtdModule.load_from_checkpoint(ckpt_dir+'/best.ckpt')
-        # Get evaluation metrics from this batch
+        # Get postquential evaluation metrics from this batch
         test_results = trainer.test(module, data_module)
         # Write results to file
         if not params.debug:
@@ -201,10 +210,11 @@ def main():
             ps.append(int(test_results[0]['test/ps']))
             ns.append(int(test_results[0]['test/ns']))
             metric = None if len(al_methods)>1 or mm=='rand' else metrics_dict[mm]
-            write_session(out_file, data_module.current_batch, test_results, (fps,fns,ps,ns), 
+            write_session(out_file, data_module.current_batch, test_results, (pre_fps,pre_fns,fps,fns,ps,ns), 
                             data_module.get_class_balance(), len(data_module.data_train), metric, dist)
         # Load next batch
         data_module.next_batch()
+        module.n_train = len(data_module)
     # Save final model and AL samples
     if not params.debug:
         torch.save(module.model.state_dict(), os.path.join(out_dir, 'state_dict.pt'))

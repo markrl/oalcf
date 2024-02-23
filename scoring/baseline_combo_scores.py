@@ -24,7 +24,7 @@ def main(file_list):
     fpr = np.sum(fps)/np.sum(ns)
     dcf = 0.25*fpr + 0.75*fnr
     total_adapt = np.sum(np.unique(n_adapt))
-    imlm = 1-((np.sum(fps)+total_adapt)/np.sum(ns) + 10*np.sum(fns)/np.sum(ps))
+    imlm = 1-((np.sum(fps)+total_adapt)/np.sum(ns) + np.sum(fns)/np.sum(ps))
     p_adapt = np.sum(n_adapt)/np.sum(n_samples)*100
     p_target = np.sum(n_target)/np.sum(n_adapt)*100
     print('DCF\tFNR\tFPR\t% adapt\t% targ\tIMLM')
