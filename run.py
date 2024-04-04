@@ -12,6 +12,7 @@ from src.module import VtdModule
 from src.dataset import VtdImlDataModule
 from src.params import get_params
 from utils.query_strategies import StrategyManager
+from utils.corrective_feedback import FeedbackSimulator
 from utils.utils import reset_trainer, update_xent
 from utils.utils import write_header, write_session
 from utils.ddm import NcDdm, NnDdm
@@ -27,6 +28,8 @@ def main():
         params.overfit_batches = int(params.overfit_batches)
     # Initialize query selection strategy object
     sm = StrategyManager(params)
+    # Initialize feedback simulator object
+    cf_sim = FeedbackSimulator(params)
     # Initialize DDM
     if params.ddm is None:
         ddm = None
@@ -128,7 +131,7 @@ def main():
 
         # Handle DDM, budgeting, query selection, etc. (TODO: Refactor and make cleaner)
         if params.budget_path is not None:
-            n_queries = int(np.genfromtxt(os.path.join(params.budget_path, params.env_name, 'budget.txt'))[data_module.current_batch])
+            n_queries = int(np.genfromtxt(os.path.join(params.budget_path, params.env_name.split('_')[0], 'budget.txt'))[data_module.current_batch])
         else:
             n_queries = params.n_queries
 
@@ -212,6 +215,17 @@ def main():
             metric = None if len(al_methods)>1 or mm=='rand' else metrics_dict[mm]
             write_session(out_file, data_module.current_batch, test_results, (pre_fps,pre_fns,fps,fns,ps,ns), 
                             data_module.get_class_balance(), len(data_module.data_train), metric, dist)
+        # Get corrective feedback
+        cf_idxs = cf_sim.simulate(data_module, module)
+        if len(cf_idxs) > 0:
+            data_module.transfer_samples(cf_idxs)
+            if base_state_dict is None:
+                # Handle exception where a batch only contains 1 sample
+                data_module.drop_last = True if len(data_module)%params.batch_size==1 else False
+                # Reset trainer for the new batch
+                reset_trainer(trainer)
+                # Train model on adaptation pool
+                trainer.fit(module, data_module)
         # Load next batch
         data_module.next_batch()
         module.n_train = len(data_module)

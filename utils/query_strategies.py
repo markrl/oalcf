@@ -3,9 +3,9 @@ import torch.nn.functional as F
 
 import pickle
 import numpy as np
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import StandardScaler
-from sklearn.svm import SVC
+from skactiveml.pool import RandomSampling, UncertaintySampling, EpistemicUncertaintySampling
+from skactiveml.pool import ProbabilisticAL, CostEmbeddingAL
+from skactiveml.utils import call_func, MISSING_LABEL
 
 from utils.utils import DcfLoss
 
@@ -28,6 +28,9 @@ class StrategyManager:
                 self.criterion = torch.nn.NLLLoss(weight=torch.tensor([1, params.target_weight]))
             else:
                 self.criterion = DcfLoss()
+        
+        if 'alce' in params.al_methods.split(','):
+            self.cost_obj = CostEmbeddingAL(classes=[0,1])
 
     def select_queries(self, data_module, method_list, module, n_queries):
         self.logits = self.extract_logits(data_module, module)
@@ -82,6 +85,13 @@ class StrategyManager:
         if 'cover' in method_list:
             idxs_dict['cover'] = cover_distribution(data_module, n_queries)
             metrics_dict['cover'] = 1
+        if 'alce' in method_list:
+            y = data_module.get_train_labels()
+            y_cand = torch.full(size=(self.logits.shape[0],), fill_value=MISSING_LABEL)
+            y = torch.cat([y_cand,y], dim=0)
+            X = self.extract_features(data_module)
+            idxs_dict['alce'] = self.cost_obj.query(X, y, batch_size=n_queries)
+            metrics_dict['alce'] = 1
 
         if self.combo=='rank':
             all_ranks = [rank_dict[kk] for kk in rank_dict.keys()]
@@ -175,6 +185,14 @@ class StrategyManager:
                 logits = [model(batch[0])[-1] for batch in loader]
         logits = torch.cat(logits, dim=0).cpu()
         return logits
+
+    def extract_features(self, data_module):
+        test_loader = data_module.test_dataloader()
+        train_loader = data_module.train_dataloader()
+        test_feats = torch.cat([batch[0] for batch in test_loader], dim=0)
+        train_feats = torch.cat([batch[0] for batch in train_loader], dim=0)
+        feats = torch.cat([test_feats, train_feats], dim=0)
+        return feats
 
 def extract_grad_lens(data_module, module, criterion):
     model = module.model

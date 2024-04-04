@@ -98,6 +98,10 @@ def get_params():
                         help='minimum number of AL samples per batch')
     parser.add_argument('--load_best', default=False, action='store_true',
                         help='use the best model from the previous session')
+    parser.add_argument('--sim_type', type=str, default=None,
+                        help='how to simulate CF')
+    parser.add_argument('--max_fb_samples', type=int, default=None,
+                        help='maximum number of CF samples per batch; `None` means no limit')
 
     # Model arguments
     parser.add_argument('--no_initial_bn', default=False, action='store_true',

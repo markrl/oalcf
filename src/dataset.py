@@ -119,6 +119,18 @@ class VtdImlDataModule(LightningDataModule):
         file_idx = int(self.data_test.active_idxs[0] / self.params.samples_per_batch)
         se_name = self.ds.feat_files[file_idx].replace('_{}', '').replace('.npy', '')
         return se_name.upper()
+
+    def get_train_labels(self):
+        if len(self.data_train)==0:
+            return None
+        labels = [self.data_train.get_label(ii) for ii in np.arange(len(self.data_train))]
+        return torch.LongTensor(labels)
+
+    def get_test_labels(self):
+        if len(self.data_test)==0:
+            return None
+        labels = [self.data_test.get_label(ii) for ii in np.arange(len(self.data_test))]
+        return torch.LongTensor(labels)
     
 
 class BaseImlData(Dataset):
@@ -254,6 +266,10 @@ class ImlData(Dataset):
         idx2 = self.active_idxs[np.random.randint(low=0, high=len(self))]
         feat2, label2 = self.base_ds[idx2]
         return feat1, label1, feat2, label2
+    
+    def get_label(self, index):
+        index = self.active_idxs[index]
+        return self.base_ds.get_label(index)
 
     def cat_data(self):
         feats = []
