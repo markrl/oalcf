@@ -49,6 +49,16 @@ class VtdImlDataModule(LightningDataModule):
             shuffle=False,
         )
 
+    def idx_loader(self, idxs):
+        ds = ImlData(self.params, self.ds)
+        ds.activate_samples(idxs)
+        return DataLoader(
+            dataset=ds,
+            batch_size=self.params.batch_size,
+            num_workers=self.params.nworkers,
+            shuffle=False,
+        )
+
     def label_boot(self):
         if self.params.bootstrap==0:
             return

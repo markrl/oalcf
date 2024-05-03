@@ -140,7 +140,7 @@ def update_xent(module, data_module):
 
 def write_header(out_file, al_methods, ddm_exists):
     f = open(out_file, 'w')
-    f.write('pass,pre_dcf,pre_fnr,pre_fpr,dcf,fnr,fpr,ns,ps,pre_fns,pre_fps,fns,fps,p_target,p_nontarget,n_samples,cum_pre_dcf,cum_dcf')
+    f.write('pass,pre_dcf,pre_fnr,pre_fpr,dcf,fnr,fpr,pre_ns,pre_ps,ns,ps,pre_fns,pre_fps,fns,fps,p_target,p_nontarget,n_samples,cum_pre_dcf,cum_dcf,n_al,n_cf,drift')
     if len(al_methods)==1 and al_methods[0]!='rand':
         f.write(',metric')
     if ddm_exists:
@@ -148,19 +148,20 @@ def write_header(out_file, al_methods, ddm_exists):
     f.write('\n')
     f.close()
 
-def write_session(out_file, current_batch, test_results, error_counts, class_balance, n_samples, metric, drift_dist):
-    pre_fps, pre_fns, fps, fns, ps, ns = error_counts
+def write_session(out_file, current_batch, test_results, error_counts, class_balance, n_samples, metric, drift_dist, n_al, n_cf, has_drift):
+    pre_fps, pre_fns, pre_ps, pre_ns, fps, fns, ps, ns = error_counts
     p_target, p_nontarget = class_balance
     f = open(out_file, 'a')
     f.write(f'{current_batch}')
-    pre_fnr = pre_fns[-1]/ps[-1] if ps[-1]>0 else 0
-    pre_fpr = pre_fps[-1]/ns[-1] if ns[-1]>0 else 0
+    pre_fnr = pre_fns[-1]/pre_ps[-1] if pre_ps[-1]>0 else 0
+    pre_fpr = pre_fps[-1]/pre_ns[-1] if pre_ns[-1]>0 else 0
     pre_dcf = 0.75*pre_fnr + 0.25*pre_fpr
     dcf = test_results[0]['test/dcf']
     fnr = test_results[0]['test/fnr']
     fpr = test_results[0]['test/fpr']
     f.write(f',{pre_dcf:.4f},{pre_fnr:.4f},{pre_fpr:.4f}')
     f.write(f',{dcf:.4f},{fnr:.4f},{fpr:.4f}')
+    f.write(f',{pre_ns[-1]:d},{pre_ps[-1]:d}')
     f.write(f',{ns[-1]:d},{ps[-1]:d},{pre_fns[-1]:d},{pre_fps[-1]:d},{fns[-1]:d},{fps[-1]:d}')
     f.write(f',{p_target:.4f},{p_nontarget:.4f},{n_samples:d}')
     pre_fnr = torch.sum(torch.LongTensor(pre_fns))/torch.sum(torch.LongTensor(ps)) if torch.sum(torch.LongTensor(ps))>0 else 0
@@ -170,7 +171,7 @@ def write_session(out_file, current_batch, test_results, error_counts, class_bal
     fnr = torch.sum(torch.LongTensor(fns))/torch.sum(torch.LongTensor(ps)) if torch.sum(torch.LongTensor(ps))>0 else 0
     fpr = torch.sum(torch.LongTensor(fps))/torch.sum(torch.LongTensor(ns)) if torch.sum(torch.LongTensor(ns))>0 else 0
     cum_dcf = 0.75*fnr + 0.25*fpr
-    f.write(f',{cum_dcf:.4f}')
+    f.write(f',{cum_dcf:.4f},{n_al:d},{n_cf:d},{has_drift:d}')
     if metric is not None:
         f.write(f',{metric:.4f}')
     if drift_dist is not None:

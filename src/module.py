@@ -6,6 +6,7 @@ import torch.nn as nn
 from pytorch_lightning import LightningModule
 
 from src.model import CompClassModel
+from ensemble.ensemble_model import ArfModel
 from utils.utils import ContrastiveLoss, DcfLoss, ImlmLoss
 
 from pdb import set_trace
@@ -15,7 +16,11 @@ class VtdModule(LightningModule):
         super().__init__()
         torch.manual_seed(params.seed)
         np.random.seed(params.seed)
-        self.model = CompClassModel(params)
+        if params.ensemble:
+            self.model = ArfModel(params)
+            self.automatic_optimization = False
+        else:
+            self.model = CompClassModel(params)
         if params.class_loss=='xent':
             self.criterion = nn.NLLLoss(weight=torch.tensor([1, params.target_weight]))
         elif params.class_loss=='dcf':
@@ -43,6 +48,13 @@ class VtdModule(LightningModule):
         return self.model(x)
 
     def training_step(self, batch, batch_idx):
+        if self.params.ensemble:
+            x,y,_,_ = batch
+            y_hat = self((x,y))
+            pred = torch.argmax(y_hat, dim=1)
+            acc = torch.mean(1.0*(pred==y))
+            self.log('train/acc', acc, on_step=False, on_epoch=True)
+            return
         x1,y1,x2,y2 = batch
         embed1, y_hat, _ = self(x1)
         if self.params.xent_weight != 1.0:
@@ -58,6 +70,20 @@ class VtdModule(LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
+        if self.params.ensemble:
+            x,y,_,_ = batch
+            y_hat = self(x)
+            pred = torch.argmax(y_hat, dim=1)
+            acc = torch.mean(1.0*(pred==y))
+            self.log('val/acc', acc, on_step=False, on_epoch=True)
+
+            self.val_fps += torch.sum(torch.logical_and(y==0, pred==1))
+            self.val_fns += torch.sum(torch.logical_and(y==1, pred==0))
+            self.val_ps += torch.sum(y==1)
+            self.val_ns += torch.sum(y==0)
+            self.val_scores.append(y_hat[:,1])
+            self.val_labels.append(y)
+            return
         x,y,_,_ = batch
         embeds,y_hat,logits = self(x)
         loss = self.criterion(y_hat,y)
@@ -98,6 +124,20 @@ class VtdModule(LightningModule):
         self.val_labels = []
 
     def test_step(self, batch, batch_idx):
+        if self.params.ensemble:
+            x,y,_,_ = batch
+            y_hat = self(x)
+            pred = torch.argmax(y_hat, dim=1)
+            acc = torch.mean(1.0*(pred==y))
+            self.log('test/acc', acc, on_step=False, on_epoch=True)
+
+            self.test_fps += torch.sum(torch.logical_and(y==0, pred==1))
+            self.test_fns += torch.sum(torch.logical_and(y==1, pred==0))
+            self.test_ps += torch.sum(y==1)
+            self.test_ns += torch.sum(y==0)
+            self.test_scores.append(y_hat[:,1])
+            self.test_labels.append(y)
+            return
         x,y,_,_ = batch
         y_hat = self(x)[1]
         loss = self.criterion(y_hat,y)
@@ -138,6 +178,8 @@ class VtdModule(LightningModule):
         self.test_labels = []
 
     def configure_optimizers(self):
+        if self.params.ensemble:
+            return None
         opt = torch.optim.Adam(self.parameters(), lr=self.params.lr,
                                 weight_decay=self.params.wd)
         if self.params.schedule_lr:

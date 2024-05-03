@@ -15,7 +15,7 @@ from utils.query_strategies import StrategyManager
 from utils.corrective_feedback import FeedbackSimulator
 from utils.utils import reset_trainer, update_xent
 from utils.utils import write_header, write_session
-from utils.ddm import NcDdm, NnDdm
+from utils.ddm import NcDdm, NnDdm, AdwinDriftDetector
 
 from pdb import set_trace
 
@@ -39,6 +39,7 @@ def main():
             ddm = NcDdm(n_clusters=params.n_queries, reduction=params.ddm_reduction, dist_fn=params.ddm_dist_fn)
         else:
             ddm = NnDdm(reduction=params.ddm_reduction, dist_fn=params.ddm_dist_fn)
+    adwin = AdwinDriftDetector()
     # Set up output directory
     out_dir = os.path.join('output', params.run_name)
     if os.path.exists(out_dir):
@@ -79,6 +80,8 @@ def main():
     # Initialize lightning data module and lightning module
     data_module = VtdImlDataModule(params)
     module = VtdModule(params)
+    if params.load_pretrained is not None:
+        module.model.load_state_dict(torch.load(params.load_pretrained))
     # Instantiate trainer
     trainer = Trainer(
         callbacks=callbacks,
@@ -116,8 +119,11 @@ def main():
     ps, ns = [], []
     fps, fns = [], []
     pre_fps, pre_fns = [], []
+    pre_ps, pre_ns = [], []
     budget = 0
     mm = 'combo' if params.combo is not None else al_methods[0]
+    if params.ensemble:
+        n_drifts = 0
     # Loop through all batches
     while data_module.current_batch < data_module.n_batches:
         # Print current session name and number
@@ -128,6 +134,8 @@ def main():
         if not params.debug:
             pre_fps.append(int(test_results[0]['test/fps']))
             pre_fns.append(int(test_results[0]['test/fns']))
+            pre_ps.append(int(test_results[0]['test/ps']))
+            pre_ns.append(int(test_results[0]['test/ns']))
 
         # Handle DDM, budgeting, query selection, etc. (TODO: Refactor and make cleaner)
         if params.budget_path is not None:
@@ -173,19 +181,38 @@ def main():
                 data_module.transfer_samples(idxs_dict[mm])
                 print(f'Target queries: {len(idxs_dict[mm])}')
                 budget -= len(idxs_dict[mm])
+                n_al = len(idxs_dict[mm])
                 sm.est_class = 'nontarget'
                 sm.min_samples = np.maximum(0, sm.min_samples-len(idxs_dict[mm]))
                 idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, budget)
+                if params.ensemble:
+                    current_n_drifts = module.model.model.n_drifts_detected()
+                    has_drift = current_n_drifts > n_drifts
+                    n_drifts = current_n_drifts
+                else:
+                    # has_drift = adwin.log_batch(data_module.idx_loader(idxs_dict[mm]), module.model)
+                    has_drift = adwin.log_batch(data_module.test_dataloader(), module.model)
+                    print(adwin.drift_idxs)
                 data_module.transfer_samples(idxs_dict[mm])
                 print(f'Nontarget queries: {len(idxs_dict[mm])}')
                 p_t, p_n = data_module.get_class_balance()
                 print(f'P_t: {p_t:.4f}')
                 budget -= len(idxs_dict[mm])
+                n_al += len(idxs_dict[mm])
                 print(f'Remaining budget: {budget}')
             else:
                 dist = None
                 idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, n_queries)
+                if params.ensemble:
+                    current_n_drifts = module.model.model.n_warnings_detected()
+                    has_drift = current_n_drifts > n_drifts
+                    n_drifts = current_n_drifts
+                else:
+                    # has_drift = adwin.log_batch(data_module.idx_loader(idxs_dict[mm]), module.model)
+                    has_drift = adwin.log_batch(data_module.test_dataloader(), module.model)
+                    print(adwin.drift_idxs)
                 data_module.transfer_samples(idxs_dict[mm])
+                n_al = len(idxs_dict[mm])
 
         # Handle exception where a batch only contains 1 sample
         data_module.drop_last = True if len(data_module)%params.batch_size==1 else False
@@ -206,17 +233,9 @@ def main():
             module = VtdModule.load_from_checkpoint(ckpt_dir+'/best.ckpt')
         # Get postquential evaluation metrics from this batch
         test_results = trainer.test(module, data_module)
-        # Write results to file
-        if not params.debug:
-            fps.append(int(test_results[0]['test/fps']))
-            fns.append(int(test_results[0]['test/fns']))
-            ps.append(int(test_results[0]['test/ps']))
-            ns.append(int(test_results[0]['test/ns']))
-            metric = None if len(al_methods)>1 or mm=='rand' else metrics_dict[mm]
-            write_session(out_file, data_module.current_batch, test_results, (pre_fps,pre_fns,fps,fns,ps,ns), 
-                            data_module.get_class_balance(), len(data_module.data_train), metric, dist)
         # Get corrective feedback
         cf_idxs = cf_sim.simulate(data_module, module)
+        n_cf = len(cf_idxs)
         if len(cf_idxs) > 0:
             data_module.transfer_samples(cf_idxs)
             if base_state_dict is None:
@@ -226,8 +245,22 @@ def main():
                 reset_trainer(trainer)
                 # Train model on adaptation pool
                 trainer.fit(module, data_module)
+        # Write results to file
+        if not params.debug:
+            fps.append(int(test_results[0]['test/fps']))
+            fns.append(int(test_results[0]['test/fns']))
+            ps.append(int(test_results[0]['test/ps']))
+            ns.append(int(test_results[0]['test/ns']))
+            metric = None if len(al_methods)>1 or mm=='rand' else metrics_dict[mm]
+            write_session(out_file, data_module.current_batch, test_results, (pre_fps,pre_fns,pre_ps,pre_ns,fps,fns,ps,ns), 
+                            data_module.get_class_balance(), len(data_module.data_train), metric, dist, n_al, n_cf, has_drift)
         # Load next batch
         data_module.next_batch()
+        # if params.ensemble:
+        #     module.n_train += len(data_module)
+        #     data_module.data_train.deactivate_all()
+        # else:
+        #     module.n_train = len(data_module)
         module.n_train = len(data_module)
     # Save final model and AL samples
     if not params.debug:

@@ -8,9 +8,33 @@ from copy import deepcopy
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
+from river import drift
 
 from pdb import set_trace
 
+class AdwinDriftDetector:
+    def __init__(self):
+        self.adwin = drift.ADWIN(clock=4)
+        self.counter = 0
+        self.drift_idxs = []
+
+    def log_batch(self, data, model):
+        has_drift = 0
+        model = model.cuda()
+        model.eval()
+        with torch.no_grad():
+            for bb in data:
+                x,y,_,_ = bb
+                x = x.cuda()
+                y_hat = torch.argmax(model(x)[1], dim=-1).cpu()
+                results = 1*(y==y_hat)
+                for rr in results:
+                    self.adwin.update(rr)
+                    if self.adwin.drift_detected:
+                        self.drift_idxs.append(self.counter)
+                        has_drift = 1
+                    self.counter += 1
+        return has_drift
 
 class LDD_DIS:
     def __init__(self, 

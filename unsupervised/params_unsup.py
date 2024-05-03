@@ -4,8 +4,8 @@ def get_params():
     parser = argparse.ArgumentParser()
 
     # Training arguments
-    parser.add_argument('--run_name', type=str,
-                        help='name of run')
+    parser.add_argument('--ckpt_name', type=str,
+                        help='model checkpoint name')
     parser.add_argument('--batch_size', type=int, default=256,
                         help='batch size')
     parser.add_argument('--nworkers', type=int, default=4,
@@ -28,7 +28,7 @@ def get_params():
                         help='metric to monitor for callbacks')
     parser.add_argument('--mode', type=str, default='min',
                         help='min or max')
-    parser.add_argument('--patience', type=int, default=15,
+    parser.add_argument('--patience', type=int, default=3,
                         help='patience for callbacks')
     parser.add_argument('--min_delta', type=int, default=0,
                         help='tolerance for callbacks')
@@ -40,7 +40,7 @@ def get_params():
                         help='dropout rate')
     parser.add_argument('--schedule_lr', default=False, action='store_true',
                         help='use lr scheduler')
-    parser.add_argument('--lrs_patience', type=int, default=10,
+    parser.add_argument('--lrs_patience', type=int, default=2,
                         help='lr scheduler patience')
     parser.add_argument('--xent_weight', type=float, default=0.09,
                         help='cross-entropy loss weight for multi-loss model')
@@ -50,62 +50,8 @@ def get_params():
                         help='classification loss type: `xent` or `dcf`')
     parser.add_argument('--dsmax_mult', type=float, default=0.0,
                         help='multiplier for differentiable softmax in DCF loss')
-    parser.add_argument('--learn_mult', default=False, action='store_true',
-                        help='learn dsmax multiplier')
-    parser.add_argument('--learn_error_weight', default=False, action='store_true',
-                        help='learn the error weighting for DCF loss')
     parser.add_argument('--auto_weight', default=False, action='store_true',
                         help='automatically change cross-entropy weighting based on training distribution')
-    parser.add_argument('--load_pretrained', type=str, default=None,
-                        help='path to pretrained model state dictionary')
-
-    # IML/AL arguments
-    parser.add_argument('--al_methods', type=str, default='smax',
-                        help='''list of active learning methods applied (separated by commas). 
-                            `None` indicates no active learning.
-                            options: `rand,ent,smax,necs`''')
-    parser.add_argument('--n_queries', type=int, default=8,
-                        help='number of active learning queries allotted per pass/batch')
-    parser.add_argument('--epochs_per_pass', type=int, default=None,
-                        help='set number of epochs per pass')
-    parser.add_argument('--bootstrap', type=int, default=8,
-                        help='number of bootstrap initialization samples')
-    parser.add_argument('--reset_weights', default=False, action='store_true',
-                        help='reset model weights every pass')
-    parser.add_argument('--combo', type=str, default=None,
-                        help='combination method: `rank`, `plateau`, `split`, `rand` or None')
-    parser.add_argument('--thresh', type=float, default=0.9,
-                        help='threshold for the plateau combo method')
-    parser.add_argument('--ddm', type=str, default=None,
-                        help='drift detection method type; `nn`, `nc` or None')
-    parser.add_argument('--ddm_thresh', type=float, default=3.1,
-                        help='ddm threshold for continued sampling')
-    parser.add_argument('--ddm_reduction', type=str, default='mean',
-                        help='ddm reduction method (statistic)')
-    parser.add_argument('--ddm_dist_fn', type=str, default=None,
-                        help='ddm distance function')
-    parser.add_argument('--drift_mult', type=int, default=5,
-                        help='multiplicative factor for queries in drifting batches')
-    parser.add_argument('--ddm_usage', type=str, default='mult',
-                        help='how the ddm is applied; `thresh`, `stats`, or `mult`')
-    parser.add_argument('--ddm_patience', type=int, default=10,
-                        help='patience for drift reduction')
-    parser.add_argument('--budget_path', type=str, default=None,
-                        help='load a predefined budget from this directory')
-    parser.add_argument('--adapt_distr', type=float, default=None,
-                        help='desired target class representation in adaptation data')
-    parser.add_argument('--separate_class_al', default=False, action='store_true',
-                        help='select AL samples for target and nontarget classes separately')
-    parser.add_argument('--min_al_samples', type=int, default=2,
-                        help='minimum number of AL samples per batch')
-    parser.add_argument('--load_best', default=False, action='store_true',
-                        help='use the best model from the previous session')
-    parser.add_argument('--sim_type', type=str, default=None,
-                        help='how to simulate CF')
-    parser.add_argument('--max_fb_samples', type=int, default=None,
-                        help='maximum number of CF samples per batch; `None` means no limit')
-    parser.add_argument('--no_replay', default=False, action='store_true',
-                        help='delete adaptation pool every batch')
 
     # Model arguments
     parser.add_argument('--no_initial_bn', default=False, action='store_true',
@@ -127,9 +73,6 @@ def get_params():
     parser.add_argument('--fill_gaps', default=False, action='store_true',
                         help='apply gap filling')
 
-    parser.add_argument('--ensemble', default=False, action='store_true',
-                        help='use ensemble model')
-
     # Data arguments
     parser.add_argument('--feat_root', type=str, default='/data/VTD/wavlm_11k_1hr/,/data/VTD/xvectors_11k_1hr',
                         help='root directory for features')
@@ -137,8 +80,9 @@ def get_params():
                         help='path to annotations')
     parser.add_argument('--samples_per_batch', type=int, default=720,
                         help='number of samples per batch/session')
-    parser.add_argument('--env_name', type=str, default='rm1_mc20',
-                        help='environment specification')
-
+    parser.add_argument('--corpus', type=str, default='sri',
+                        help='corpus specification')
+    parser.add_argument('--env_name', type=str,
+                        help='environment details; [room]_[mic]')
 
     return parser.parse_args()

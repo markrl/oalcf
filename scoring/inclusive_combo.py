@@ -55,6 +55,7 @@ def main(file_list):
     fnr = np.sum(fns)/np.sum(ps)
     fpr = np.sum(fps)/np.sum(ns)
     dcf = 0.25*fpr + 0.75*fnr
+    # n_adapt = [5616]
     imlm = (np.sum(fps)+np.sum(n_adapt))/(np.sum(ns)+np.sum(ps)) + np.sum(fns)/np.sum(ps)
     p_adapt = np.sum(n_adapt)/np.sum(n_samples)*100
     p_target = np.sum(n_target)/np.sum(n_adapt)*100

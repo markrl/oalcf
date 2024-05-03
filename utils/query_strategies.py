@@ -13,6 +13,7 @@ from pdb import set_trace
 
 class StrategyManager:
     def __init__(self, params):
+        self.ensemble = params.ensemble
         self.combo = params.combo
         self.p_target = params.adapt_distr
         self.est_class = 'both'
@@ -178,11 +179,14 @@ class StrategyManager:
         else:
             loader = data_module.test_dataloader()
         with torch.no_grad():
-            if torch.cuda.is_available():
-                model = model.cuda()
-                logits = [model(batch[0].cuda())[-1] for batch in loader]
+            if self.ensemble:
+                logits = [model(batch[0]) for batch in loader]
             else:
-                logits = [model(batch[0])[-1] for batch in loader]
+                if torch.cuda.is_available():
+                    model = model.cuda()
+                    logits = [model(batch[0].cuda())[-1] for batch in loader]
+                else:
+                    logits = [model(batch[0])[-1] for batch in loader]
         logits = torch.cat(logits, dim=0).cpu()
         return logits
 

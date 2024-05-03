@@ -17,9 +17,13 @@ def main(file_list):
         ns.append(np.sum(sheet['ns']))
         fps.append(np.sum(sheet['fps']))
         fns.append(np.sum(sheet['fns']))
-        n_adapt.append(np.array(sheet['n_samples'])[-1])
+        if 'n_al' in sheet.keys():
+            n_adapt.append(np.sum(sheet['n_al']))
+            n_target.append(int(np.sum(sheet['p_target']*sheet['n_al'])))
+        else:
+            n_adapt.append(np.array(sheet['n_samples'])[-1])
+            n_target.append(n_adapt[-1]*np.array(sheet['p_target'])[-1])
         n_samples.append(ps[-1]+ns[-1])
-        n_target.append(n_adapt[-1]*np.array(sheet['p_target'])[-1])
     fnr = np.sum(fns)/np.sum(ps)
     fpr = np.sum(fps)/np.sum(ns)
     dcf = 0.25*fpr + 0.75*fnr
