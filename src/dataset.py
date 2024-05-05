@@ -20,6 +20,8 @@ class VtdImlDataModule(LightningDataModule):
         self.current_batch = -1
         self.n_batches = int(len(self.ds)/params.samples_per_batch)
         self.drop_last = False
+        self.train_active_order = {}
+        self.forget_n_batches = params.forget_n_batches
 
     def setup(self, stage):
         return
@@ -75,6 +77,7 @@ class VtdImlDataModule(LightningDataModule):
             ii += 1
         idxs = nontarget_idxs + target_idxs
         self.data_train.activate_samples(idxs)
+        self.train_active_order[self.current_batch] = idxs
 
     def get_class_counts(self):
         labels = torch.FloatTensor([self.ds.get_label(ii) for ii in self.data_train.active_idxs])
@@ -94,6 +97,16 @@ class VtdImlDataModule(LightningDataModule):
         # Activate train, deactivate test
         self.data_train.activate_samples(idxs)
         self.data_test.deactivate_samples(idxs)
+        self.train_active_order[self.current_batch] = idxs
+
+    def forget_samples(self):
+        if self.forget_n_batches is not None:
+            batch_num = self.current_batch - self.forget_n_batches
+            orig_keys = list(self.train_active_order.keys())
+            for kk in orig_keys:
+                if kk <= batch_num:
+                    idxs = self.train_active_order.pop(kk)
+                    self.data_train.deactivate_samples(idxs) 
 
     def next_batch(self):
         if self.current_batch>=self.n_batches-1:

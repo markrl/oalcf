@@ -104,8 +104,8 @@ def get_params():
                         help='how to simulate CF')
     parser.add_argument('--max_fb_samples', type=int, default=None,
                         help='maximum number of CF samples per batch; `None` means no limit')
-    parser.add_argument('--no_replay', default=False, action='store_true',
-                        help='delete adaptation pool every batch')
+    parser.add_argument('--forget_n_batches', type=int, default=None,
+                        help='forget adaptation data after n batches; `1`')
 
     # Model arguments
     parser.add_argument('--no_initial_bn', default=False, action='store_true',

@@ -254,14 +254,11 @@ def main():
             metric = None if len(al_methods)>1 or mm=='rand' else metrics_dict[mm]
             write_session(out_file, data_module.current_batch, test_results, (pre_fps,pre_fns,pre_ps,pre_ns,fps,fns,ps,ns), 
                             data_module.get_class_balance(), len(data_module.data_train), metric, dist, n_al, n_cf, has_drift)
-        # Load next batch
-        data_module.next_batch()
-        # if params.ensemble:
-        #     module.n_train += len(data_module)
-        #     data_module.data_train.deactivate_all()
-        # else:
-        #     module.n_train = len(data_module)
+        # Prepare transition to next batch
         module.n_train = len(data_module)
+        data_module.next_batch()
+        set_trace()
+        data_module.forget_samples()
     # Save final model and AL samples
     if not params.debug:
         torch.save(module.model.state_dict(), os.path.join(out_dir, 'state_dict.pt'))
