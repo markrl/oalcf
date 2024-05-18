@@ -50,6 +50,10 @@ def get_params():
                         help='classification loss type: `xent` or `dcf`')
     parser.add_argument('--dsmax_mult', type=float, default=0.0,
                         help='multiplier for differentiable softmax in DCF loss')
+    parser.add_argument('--learn_mult', default=False, action='store_true',
+                        help='learn dsmax multiplier')
+    parser.add_argument('--learn_error_weight', default=False, action='store_true',
+                        help='learn the error weighting for DCF loss')
     parser.add_argument('--auto_weight', default=False, action='store_true',
                         help='automatically change cross-entropy weighting based on training distribution')
 
@@ -72,6 +76,8 @@ def get_params():
                         help='context frames on both sides of the target frame')
     parser.add_argument('--fill_gaps', default=False, action='store_true',
                         help='apply gap filling')
+    parser.add_argument('--ensemble', default=False, action='store_true',
+                        help='use ensemble model')
 
     # Data arguments
     parser.add_argument('--feat_root', type=str, default='/data/VTD/wavlm_11k_1hr/,/data/VTD/xvectors_11k_1hr',
@@ -84,5 +90,7 @@ def get_params():
                         help='corpus specification')
     parser.add_argument('--eval_run', type=str,
                         help='directory of run to evaluate')
+    parser.add_argument('--lid_target', type=str, default='ha',
+                        help='target class for LID task')
 
     return parser.parse_args()

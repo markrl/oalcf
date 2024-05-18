@@ -7,7 +7,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 
 from src.module import VtdModule
-from baselines.ood.dataset_ood import VtdDataModule
+from baselines.ood.dataset_ood import SupervisedDataModule
 from baselines.ood.params_ood import get_params
 from utils.utils import update_xent
 from utils.utils import write_header, write_session
@@ -55,7 +55,7 @@ def main():
     ))
     
     # Initialize lightning data module and lightning module
-    data_module = VtdDataModule(params)
+    data_module = SupervisedDataModule(params)
     module = VtdModule(params)
     # Instantiate trainer
     trainer = Trainer(
@@ -88,12 +88,16 @@ def main():
         fns.append(int(test_results[0]['test/fns']))
         ps.append(int(test_results[0]['test/ps']))
         ns.append(int(test_results[0]['test/ns']))
-        write_session(out_file, 0, test_results, (fps,fns,ps,ns), 
-                        data_module.get_class_balance(), len(data_module.data_train), None, None)
+        write_session(out_file, 0, test_results, (fps,fns,ps,ns,fps,fns,ps,ns), 
+                        data_module.get_class_balance(), len(data_module.data_train), 
+                        None, None, len(data_module.data_train), 0, 0)
     
     # Save final model
     if not params.debug:
-        torch.save(module.model.state_dict(), os.path.join(out_dir, 'state_dict.pt'))
+        if params.ensemble:
+            pickle.dump(module.model.model, open('model.p', 'wb'))
+        else:
+            torch.save(module.model.state_dict(), os.path.join(out_dir, 'state_dict.pt'))
 
 if __name__=='__main__':
     import time

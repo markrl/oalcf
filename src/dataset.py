@@ -9,12 +9,17 @@ from copy import deepcopy
 
 from pdb import set_trace
 
-class VtdImlDataModule(LightningDataModule):
+class ImlDataModule(LightningDataModule):
     def __init__(self, params):
         self.params = params
         super().__init__()
         # Form dataset
-        self.ds = BaseImlData(params)
+        if 'VTD' in params.feat_root:
+            self.ds = BaseVtdData(params)
+            self.task = 'vtd'
+        elif 'LID' in params.feat_root:
+            self.ds = BaseLidData(params)
+            self.task = 'lid'
         self.data_train = ImlData(params, self.ds)
         self.data_test = ImlData(params, self.ds)
         self.current_batch = -1
@@ -139,9 +144,12 @@ class VtdImlDataModule(LightningDataModule):
     def get_current_session_name(self):
         if len(self.data_test)==0:
             return 'NO BATCH LOADED'
-        file_idx = int(self.data_test.active_idxs[0] / self.params.samples_per_batch)
-        se_name = self.ds.feat_files[file_idx].replace('_{}', '').replace('.npy', '')
-        return se_name.upper()
+        elif self.task=='vtd':
+            file_idx = int(self.data_test.active_idxs[0] / self.params.samples_per_batch)
+            se_name = self.ds.feat_files[file_idx].replace('_{}', '').replace('.npy', '')
+            return se_name.upper()
+        elif self.task=='lid':
+            return f'SESSION {self.current_batch}'
 
     def get_train_labels(self):
         if len(self.data_train)==0:
@@ -156,7 +164,7 @@ class VtdImlDataModule(LightningDataModule):
         return torch.LongTensor(labels)
     
 
-class BaseImlData(Dataset):
+class BaseVtdData(Dataset):
     def __init__(self, 
                  params,
                  ):
@@ -208,6 +216,49 @@ class BaseImlData(Dataset):
         file_idx = int(index / self.params.samples_per_batch)
         sample_idx = index % self.params.samples_per_batch
         return int(np.load(self.label_files[file_idx])[sample_idx])
+
+    def get_class_balance(self):
+        labels = []
+        for ii in range(len(self)):
+            labels.append(self.get_label(ii))
+        p_target = np.mean(labels)
+        p_nontarget = 1-p_target
+        print(f'{p_target*100:.2f}% target')
+        print(f'{p_nontarget*100:.2f}% nontarget')
+
+
+class BaseLidData(Dataset):
+    def __init__(self, 
+                 params,
+                 ):
+        super().__init__()
+        self.params = params
+        self.env = params.env_name
+        self.feat_roots = params.feat_root.split(',')
+        self.feat_names = [rr.split('/')[4] for rr in self.feat_roots]
+        self.feat_files = []
+        self.labels = []
+        order_file = os.path.join(self.feat_roots[0], '../orders', f'{params.order_file}_order_{self.env}')
+        with open(order_file, 'r') as f:
+            for line in f.readlines():
+                line = line.strip()
+                label = line.split('_')[2]
+                if label == params.lid_target:
+                    self.labels.append(1)
+                else:
+                    self.labels.append(0)
+                self.feat_files.append(line)
+
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, index):
+        label = self.get_label(index)
+        feat = np.concatenate([np.load(os.path.join(rr, self.env, f'{self.feat_files[index]}.npy')) for rr in self.feat_roots])
+        return torch.from_numpy(feat).float(), label
+
+    def get_label(self, index):
+        return int(self.labels[index])
 
     def get_class_balance(self):
         labels = []
@@ -303,9 +354,10 @@ class ImlData(Dataset):
 if __name__=='__main__':
     from params import get_params
     params = get_params()
-    data_module = VtdImlDataModule(params)
+    data_module = ImlDataModule(params)
     data_module.label_boot()
     data_module.next_batch()
+    set_trace()
     data_module.transfer_samples([2,4])
     data_module.next_batch()
     data_module.transfer_samples([3,5])

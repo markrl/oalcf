@@ -12,16 +12,51 @@ class FeedbackSimulator:
     def simulate(self, data_module, module):
         if self.sim_type is None:
             return []
-        elif self.sim_type=='all':
-            idxs = torch.arange(data_module.unlabeled_len())
-        elif self.sim_type=='fps':
-            preds = self.extract_preds(data_module, module)
+        idxs = []
+        if self.sim_type=='all':
+            idxs.append(torch.arange(data_module.unlabeled_len()))
+        else:
+            preds, scores = self.extract_preds(data_module, module)
             labels = data_module.get_test_labels()
-            idxs = np.where(np.logical_and(labels==0, preds==1))[0]
-        elif self.sim_type=='fpstps':
-            preds = self.extract_preds(data_module, module)
-            labels = data_module.get_test_labels()
-            idxs = np.where(preds==1)[0]
+            if 'fps' in self.sim_type:
+                idx = np.where(np.logical_and(labels==0, preds==1))[0]
+                if len(idx)==0:
+                    idxs.append([])
+                elif len(idx)==1:
+                    idxs.append([idx[0]])
+                else:
+                    score = scores[idx]
+                    idxs.append(idx[np.argsort(1-score)])
+            if 'tps' in self.sim_type:
+                idx = np.where(np.logical_and(labels==1, preds==1))[0]
+                if len(idx)==0:
+                    idxs.append([])
+                elif len(idx)==1:
+                    idxs.append([idx[0]])
+                else:
+                    score = scores[idx]
+                    idxs.append(idx[np.argsort(score-0.5)])
+            if 'fns' in self.sim_type:
+                idx = np.where(np.logical_and(labels==1, preds==0))[0]
+                if len(idx)==0:
+                    idxs.append([])
+                elif len(idx)==1:
+                    idxs.append([idx[0]])
+                else:
+                    score = scores[idx]
+                    idxs.append(idx[np.argsort(1-score)])
+            if 'tns' in self.sim_type:
+                idx = np.where(np.logical_and(labels==0, preds==0))[0]
+                if len(idx)==0:
+                    idxs.append([])
+                elif len(idx)==1:
+                    idxs.append([idx[0]])
+                else:
+                    score = scores[idx]
+                    idxs.append(idx[np.argsort(score-0.5)])
+        if len(idxs) == 0:
+            return []
+        idxs = self.interleave(idxs)
 
         if self.max_fb_samples is None:
             return idxs
@@ -42,5 +77,14 @@ class FeedbackSimulator:
             else:
                 logits = [model(batch[0])[-1] for batch in loader]
         logits = torch.cat(logits, dim=0).cpu()
-        preds = torch.argmax(F.softmax(logits, dim=-1), dim=-1)
-        return preds
+        scores, preds = torch.max(F.softmax(logits, dim=-1), dim=-1)
+        return preds, scores
+
+    def interleave(self, list_list):
+        out = []
+        list_list = [list(ll)[::-1] for ll in list_list if len(ll)>0]
+        while len(list_list) > 0:
+            for ll in list_list:
+                out.append(ll.pop())
+            list_list = [ll for ll in list_list if len(ll)>0]
+        return out

@@ -126,7 +126,6 @@ def get_params():
                         help='context frames on both sides of the target frame')
     parser.add_argument('--fill_gaps', default=False, action='store_true',
                         help='apply gap filling')
-
     parser.add_argument('--ensemble', default=False, action='store_true',
                         help='use ensemble model')
 
@@ -135,10 +134,14 @@ def get_params():
                         help='root directory for features')
     parser.add_argument('--ann_root', type=str, default='/data/VTD/VTD_labels/all_labels_1hr',
                         help='path to annotations')
+    parser.add_argument('--order_file', type=str, default='random',
+                        help='path to file defining file ordering')
     parser.add_argument('--samples_per_batch', type=int, default=720,
                         help='number of samples per batch/session')
     parser.add_argument('--env_name', type=str, default='rm1_mc20',
                         help='environment specification')
+    parser.add_argument('--lid_target', type=str, default='ha',
+                        help='target class for LID task')
 
 
     return parser.parse_args()

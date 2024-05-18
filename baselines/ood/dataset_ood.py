@@ -9,14 +9,19 @@ from copy import deepcopy
 
 from pdb import set_trace
 
-class VtdDataModule(LightningDataModule):
+class SupervisedDataModule(LightningDataModule):
     def __init__(self, params):
         self.params = params
         super().__init__()
         # Form dataset
-        self.data_train = VtdData(params, 'train')
-        self.data_val = VtdData(params, 'val')
-        self.data_test = VtdData(params, 'test')
+        if 'VTD' in params.feat_root:
+            self.data_train = VtdData(params, 'train')
+            self.data_val = VtdData(params, 'val')
+            self.data_test = VtdData(params, 'test')
+        elif 'LID' in params.feat_root:
+            self.data_train = LidData(params, 'train')
+            self.data_val = LidData(params, 'dev')
+            self.data_test = LidData(params, 'test')
 
     def setup(self, stage):
         return
@@ -148,12 +153,57 @@ class VtdData(Dataset):
         print(f'{p_nontarget*100:.2f}% nontarget')
 
 
-class VtdEvalDataModule(LightningDataModule):
+class LidData(Dataset):
+    def __init__(self, 
+                 params,
+                 fold,
+                 ):
+        super().__init__()
+        self.params = params
+        self.fold = fold
+        self.feat_roots = params.feat_root.split(',')
+        self.feat_names = [rr.split('/')[4] for rr in self.feat_roots]
+        self.feat_files = glob.glob(os.path.join(self.feat_roots[0], fold, '*.npy'))
+        self.feat_files = [os.path.basename(ff)[:-4] for ff in self.feat_files]
+        self.labels = [1*(ff.split('_')[2]==params.lid_target) for ff in self.feat_files]
+
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, index):
+        label1 = self.get_label(index)
+        feat1 = np.concatenate([np.load(os.path.join(rr, self.fold, f'{self.feat_files[index]}.npy')) for rr in self.feat_roots])
+        if self.fold!='train':
+            return torch.from_numpy(feat1).float(), label1, 0, 0
+        else:
+            idx2 = np.random.randint(low=0, high=len(self))
+            label2 = self.get_label(idx2)
+            feat2 = np.concatenate([np.load(os.path.join(rr, self.fold, f'{self.feat_files[idx2]}.npy')) for rr in self.feat_roots])
+            return (torch.from_numpy(feat1).float(), label1, 
+                    torch.from_numpy(feat2).float(), label2)            
+
+    def get_label(self, index):
+        return int(self.labels[index])
+
+    def get_class_balance(self):
+        labels = []
+        for ii in range(len(self)):
+            labels.append(self.get_label(ii))
+        p_target = np.mean(labels)
+        p_nontarget = 1-p_target
+        print(f'{p_target*100:.2f}% target')
+        print(f'{p_nontarget*100:.2f}% nontarget')    
+
+
+class SupervisedEvalDataModule(LightningDataModule):
     def __init__(self, params):
         self.params = params
         super().__init__()
         # Form dataset
-        self.data_test = VtdEvalData(params)
+        if 'VTD' in params.feat_root:
+            self.data_test = VtdEvalData(params)
+        elif 'LID' in params.feat_root:
+            self.data_test = LidData(params)
 
     def setup(self, stage):
         return

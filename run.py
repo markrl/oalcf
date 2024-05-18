@@ -3,13 +3,14 @@ import numpy as np
 import os
 import sys
 from copy import deepcopy
+import pickle
 
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers.wandb import WandbLogger
 
 from src.module import VtdModule
-from src.dataset import VtdImlDataModule
+from src.dataset import ImlDataModule
 from src.params import get_params
 from utils.query_strategies import StrategyManager
 from utils.corrective_feedback import FeedbackSimulator
@@ -78,7 +79,7 @@ def main():
     ))
     
     # Initialize lightning data module and lightning module
-    data_module = VtdImlDataModule(params)
+    data_module = ImlDataModule(params)
     module = VtdModule(params)
     if params.load_pretrained is not None:
         module.model.load_state_dict(torch.load(params.load_pretrained))
@@ -203,7 +204,7 @@ def main():
             else:
                 dist = None
                 idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, n_queries)
-                if params.ensemble:
+                if False:
                     current_n_drifts = module.model.model.n_warnings_detected()
                     has_drift = current_n_drifts > n_drifts
                     n_drifts = current_n_drifts
@@ -257,11 +258,13 @@ def main():
         # Prepare transition to next batch
         module.n_train = len(data_module)
         data_module.next_batch()
-        set_trace()
         data_module.forget_samples()
     # Save final model and AL samples
     if not params.debug:
-        torch.save(module.model.state_dict(), os.path.join(out_dir, 'state_dict.pt'))
+        if params.ensemble:
+            pickle.dump(module.model.model, open('model.p', 'wb'))
+        else:
+            torch.save(module.model.state_dict(), os.path.join(out_dir, 'state_dict.pt'))
         data_module.save_active_files(os.path.join(out_dir, 'al_samples.txt'))
 
 if __name__=='__main__':
