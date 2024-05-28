@@ -167,6 +167,23 @@ class LidData(Dataset):
         self.feat_files = [os.path.basename(ff)[:-4] for ff in self.feat_files]
         self.labels = [1*(ff.split('_')[2]==params.lid_target) for ff in self.feat_files]
 
+        if params.desired_target_percentage is not None and fold=='train':
+            current_percent = np.mean(self.labels)
+            if current_percent < params.desired_target_percentage:
+                non_idxs = np.where(np.array(self.labels)==0)[0]
+                targ_idxs = np.where(np.array(self.labels)==1)[0]
+                n_non = int(len(targ_idxs)*(1-params.desired_target_percentage)/params.desired_target_percentage)
+                rm_idxs = non_idxs[n_non:]
+                self.feat_files = np.delete(self.feat_files, rm_idxs)
+                self.labels = np.delete(self.labels, rm_idxs)
+            elif current_percent > params.desired_target_percentage:
+                non_idxs = np.where(np.array(self.labels)==0)[0]
+                targ_idxs = np.where(np.array(self.labels)==1)[0]
+                n_targ = int(params.desired_target_percentage*len(non_idxs)/(1-params.desired_target_percentage))
+                rm_idxs = targ_idxs[n_targ:]
+                self.feat_files = np.delete(self.feat_files, rm_idxs)
+                self.labels = np.delete(self.labels, rm_idxs)
+
     def __len__(self):
         return len(self.labels)
 

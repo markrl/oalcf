@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 import numpy as np
+import random
 
 from pdb import set_trace
 
@@ -57,6 +58,7 @@ class FeedbackSimulator:
         if len(idxs) == 0:
             return []
         idxs = self.interleave(idxs)
+        # random.shuffle(idxs)
 
         if self.max_fb_samples is None:
             return idxs

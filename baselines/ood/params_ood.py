@@ -92,5 +92,7 @@ def get_params():
                         help='directory of run to evaluate')
     parser.add_argument('--lid_target', type=str, default='ha',
                         help='target class for LID task')
+    parser.add_argument('--desired_target_percentage', type=float, default=None,
+                        help='adjust training data to contain this fraction of target samples')
 
     return parser.parse_args()

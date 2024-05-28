@@ -357,7 +357,6 @@ if __name__=='__main__':
     data_module = ImlDataModule(params)
     data_module.label_boot()
     data_module.next_batch()
-    set_trace()
     data_module.transfer_samples([2,4])
     data_module.next_batch()
     data_module.transfer_samples([3,5])
