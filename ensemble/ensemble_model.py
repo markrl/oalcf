@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import numpy as np
 from river.forest import ARFClassifier, AMFClassifier
-from river.compat import River2SKLClassifier
 
 from pdb import set_trace
 
@@ -13,7 +12,6 @@ class ArfModel(nn.Module):
         n_estimators = 10
         self.model = ARFClassifier(n_estimators)
         if 'corpus' in params.__dict__:
-            self.model = River2SKLClassifier(self.model)
             self.stream = False
         else:
             self.stream = True
