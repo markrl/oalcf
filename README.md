@@ -2,7 +2,7 @@
 The Interactive Machine Learning (IML) paradigm is a machine learning training scheme that allows a model to be trained to perform a specific task alongside a human expert who performs the same task. This repository contains code that implements the IML pipeline, application to the tasks of Voice-Type Discrimination (VTD) and Language Identification (LID), as well as many plotting, scoring, and feature extraction scripts.
 
 ## Dependencies
-Dependencies are contained in the `requirements.txt` file. To equip your virtual environment with these dependencies, start a virtual environment with Python 3.9.18 and Pytorch 2.0.1 installed and run this command:
+Dependencies are contained in the `requirements.txt` file. To equip your virtual environment with these dependencies, start a virtual environment with Python 3.9.18 installed and run this command:
 
 ```
 pip install -r requirements.txt
