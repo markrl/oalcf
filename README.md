@@ -10,6 +10,9 @@ pip install -r requirements.txt
 
 Additional configuration of Pytorch for your machine may be required.
 
+## Feature Extraction
+Python scripts for LID x-vector and WavLM feature extraction are located in the `utils` directory. To extract a feature from an MP3 audio dataset with train/dev/test splits, copy the script to the directory containing the split directories, and run the script there. The output will be placed in a directory called `wavlm` or `xvectors` (depending on the script) with subdirectories called `train`, `test`, and `dev`.
+
 ## Demonstration
 Below are demonstrations of how to start VTD and LID training/evaluation runs using the IML paradigm. All commands should be run from the main directory of this repository. 
 
