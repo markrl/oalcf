@@ -163,9 +163,18 @@ class LidData(Dataset):
         self.fold = fold
         self.feat_roots = params.feat_root.split(',')
         self.feat_names = [rr.split('/')[4] for rr in self.feat_roots]
-        self.feat_files = glob.glob(os.path.join(self.feat_roots[0], fold, '*.npy'))
-        self.feat_files = [os.path.basename(ff)[:-4] for ff in self.feat_files]
-        self.labels = [1*(ff.split('_')[2]==params.lid_target) for ff in self.feat_files]
+        self.feat_files = []
+        self.labels = []
+        order_file = os.path.join(self.feat_roots[0], '../orders', f'{params.order_file}_order_{fold}')
+        with open(order_file, 'r') as f:
+            for line in f.readlines():
+                line = line.strip()
+                label = line.split('_')[2]
+                if label == params.lid_target:
+                    self.labels.append(1)
+                else:
+                    self.labels.append(0)
+                self.feat_files.append(line)
 
         if params.desired_target_percentage is not None and fold=='train':
             current_percent = np.mean(self.labels)
@@ -189,13 +198,13 @@ class LidData(Dataset):
 
     def __getitem__(self, index):
         label1 = self.get_label(index)
-        feat1 = np.concatenate([np.load(os.path.join(rr, self.fold, f'{self.feat_files[index]}.npy')) for rr in self.feat_roots])
+        feat1 = self.get_sample_with_context(index)
         if self.fold!='train':
             return torch.from_numpy(feat1).float(), label1, 0, 0
         else:
             idx2 = np.random.randint(low=0, high=len(self))
             label2 = self.get_label(idx2)
-            feat2 = np.concatenate([np.load(os.path.join(rr, self.fold, f'{self.feat_files[idx2]}.npy')) for rr in self.feat_roots])
+            feat2 = self.get_sample_with_context(idx2)
             return (torch.from_numpy(feat1).float(), label1, 
                     torch.from_numpy(feat2).float(), label2)            
 
@@ -209,7 +218,23 @@ class LidData(Dataset):
         p_target = np.mean(labels)
         p_nontarget = 1-p_target
         print(f'{p_target*100:.2f}% target')
-        print(f'{p_nontarget*100:.2f}% nontarget')    
+        print(f'{p_nontarget*100:.2f}% nontarget')
+    
+    def get_sample_with_context(self, index):
+        idx_in_batch = index % self.params.samples_per_batch
+        max_idx = len(self)-1
+        feat = []
+        for ii in range(index-self.params.context, index+self.params.context+1):
+            idx = ii % max_idx
+            feat.append(np.concatenate([np.load(os.path.join(rr, self.fold, f'{self.feat_files[idx]}.npy')) for rr in self.feat_roots]))
+        feat = np.stack(feat, axis=0)
+        if idx_in_batch<self.params.context:
+            n_zeros = self.params.context-idx_in_batch
+            feat[:n_zeros] = 0
+        if idx_in_batch+self.params.context>=self.params.samples_per_batch:
+            n_zeros = self.params.context+idx_in_batch-self.params.samples_per_batch+1
+            feat[-n_zeros:] = 0
+        return feat.reshape(-1)
 
 
 class SupervisedEvalDataModule(LightningDataModule):

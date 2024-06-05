@@ -8,7 +8,12 @@ class ClassModel(nn.Module):
         self.params = params
         dim = 0
         for rr in params.feat_root.split(','):
-            dim += 512 if 'wavlm' not in rr else 1024
+            if 'ecapa' in rr:
+                dim += 256
+            elif 'wavlm' in rr:
+                dim += 1024
+            else:
+                dim += 512
         dim *= params.context*2+1
 
         if 'seq' in params.feat_root:
@@ -41,7 +46,12 @@ class CompModel(nn.Module):
         self.params = params
         dim = 0
         for rr in params.feat_root.split(','):
-            dim += 512 if 'wavlm' not in rr else 1024
+            if 'ecapa' in rr:
+                dim += 256
+            elif 'wavlm' in rr:
+                dim += 1024
+            else:
+                dim += 512
         dim *= params.context*2+1
 
         self.bn_layer = nn.BatchNorm1d(dim)
@@ -62,7 +72,12 @@ class CompClassModel(CompModel):
         super().__init__(params)
         dim = 0
         for rr in params.feat_root.split(','):
-            dim += 512 if 'wavlm' not in rr else 1024
+            if 'ecapa' in rr:
+                dim += 256
+            elif 'wavlm' in rr:
+                dim += 1024
+            else:
+                dim += 512
         dim *= params.context*2+1
             
         if 'seq' in params.feat_root:

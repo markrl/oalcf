@@ -254,7 +254,7 @@ class BaseLidData(Dataset):
 
     def __getitem__(self, index):
         label = self.get_label(index)
-        feat = np.concatenate([np.load(os.path.join(rr, self.env, f'{self.feat_files[index]}.npy')) for rr in self.feat_roots])
+        feat = self.get_sample_with_context(index)
         return torch.from_numpy(feat).float(), label
 
     def get_label(self, index):
@@ -268,6 +268,22 @@ class BaseLidData(Dataset):
         p_nontarget = 1-p_target
         print(f'{p_target*100:.2f}% target')
         print(f'{p_nontarget*100:.2f}% nontarget')
+
+    def get_sample_with_context(self, index):
+        idx_in_batch = index % self.params.samples_per_batch
+        max_idx = len(self)-1
+        feat = []
+        for ii in range(index-self.params.context, index+self.params.context+1):
+            idx = ii % max_idx
+            feat.append(np.concatenate([np.load(os.path.join(rr, self.env, f'{self.feat_files[idx]}.npy')) for rr in self.feat_roots]))
+        feat = np.stack(feat, axis=0)
+        if idx_in_batch<self.params.context:
+            n_zeros = self.params.context-idx_in_batch
+            feat[:n_zeros] = 0
+        if idx_in_batch+self.params.context>=self.params.samples_per_batch:
+            n_zeros = self.params.context+idx_in_batch-self.params.samples_per_batch+1
+            feat[-n_zeros:] = 0
+        return feat.reshape(-1)
 
 
 class ImlData(Dataset):
@@ -355,6 +371,7 @@ if __name__=='__main__':
     from params import get_params
     params = get_params()
     data_module = ImlDataModule(params)
+    data_module.ds[len(data_module.ds)-1]
     data_module.label_boot()
     data_module.next_batch()
     data_module.transfer_samples([2,4])

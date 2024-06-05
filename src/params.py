@@ -104,6 +104,8 @@ def get_params():
                         help='how to simulate CF')
     parser.add_argument('--max_fb_samples', type=int, default=None,
                         help='maximum number of CF samples per batch; `None` means no limit')
+    parser.add_argument('--rank_cf', type=str, default=None,
+                        help='choose the most informative feedback samples')
     parser.add_argument('--forget_n_batches', type=int, default=None,
                         help='forget adaptation data after n batches; `1`')
 
@@ -134,7 +136,7 @@ def get_params():
                         help='root directory for features')
     parser.add_argument('--ann_root', type=str, default='/data/VTD/VTD_labels/all_labels_1hr',
                         help='path to annotations')
-    parser.add_argument('--order_file', type=str, default='random',
+    parser.add_argument('--order_file', type=str, default='cluster',
                         help='path to file defining file ordering')
     parser.add_argument('--samples_per_batch', type=int, default=720,
                         help='number of samples per batch/session')

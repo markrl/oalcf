@@ -7,6 +7,7 @@ from pdb import set_trace
 
 class FeedbackSimulator:
     def __init__(self, params):
+        self.params = params
         self.sim_type = params.sim_type
         self.max_fb_samples = params.max_fb_samples
 
@@ -26,8 +27,11 @@ class FeedbackSimulator:
                 elif len(idx)==1:
                     idxs.append([idx[0]])
                 else:
-                    score = scores[idx]
-                    idxs.append(idx[np.argsort(1-score)])
+                    if self.params.rank_cf is not None:
+                        score = scores[idx]
+                        idxs.append(idx[np.argsort(1-score)])
+                    else:
+                        idxs.append(idx)
             if 'tps' in self.sim_type:
                 idx = np.where(np.logical_and(labels==1, preds==1))[0]
                 if len(idx)==0:
@@ -35,8 +39,11 @@ class FeedbackSimulator:
                 elif len(idx)==1:
                     idxs.append([idx[0]])
                 else:
-                    score = scores[idx]
-                    idxs.append(idx[np.argsort(score-0.5)])
+                    if self.params.rank_cf is not None:
+                        score = scores[idx]
+                        idxs.append(idx[np.argsort(score-0.5)])
+                    else:
+                        idxs.append(idx)
             if 'fns' in self.sim_type:
                 idx = np.where(np.logical_and(labels==1, preds==0))[0]
                 if len(idx)==0:
@@ -44,8 +51,11 @@ class FeedbackSimulator:
                 elif len(idx)==1:
                     idxs.append([idx[0]])
                 else:
-                    score = scores[idx]
-                    idxs.append(idx[np.argsort(1-score)])
+                    if self.params.rank_cf is not None:
+                        score = scores[idx]
+                        idxs.append(idx[np.argsort(1-score)])
+                    else:
+                        idxs.append(idx)
             if 'tns' in self.sim_type:
                 idx = np.where(np.logical_and(labels==0, preds==0))[0]
                 if len(idx)==0:
@@ -53,12 +63,14 @@ class FeedbackSimulator:
                 elif len(idx)==1:
                     idxs.append([idx[0]])
                 else:
-                    score = scores[idx]
-                    idxs.append(idx[np.argsort(score-0.5)])
+                    if self.params.rank_cf is not None:
+                        score = scores[idx]
+                        idxs.append(idx[np.argsort(score-0.5)])
+                    else:
+                        idxs.append(idx)
         if len(idxs) == 0:
             return []
         idxs = self.interleave(idxs)
-        # random.shuffle(idxs)
 
         if self.max_fb_samples is None:
             return idxs
