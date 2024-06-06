@@ -10,7 +10,7 @@ rm -rf checkpoints/${runname}
 mkdir checkpoints/${runname}
 
 env="dev"
-screen -dmS ${runname}_${env} sh -c "CUDA_VISIBLE_DEVICES=0 python run.py --run_name ${runname}/${env} --env_name ${env} --feat_root /mnt/usb1/AfricanContinentLID/wavlm/,/mnt/usb1/AfricanContinentLID/xvectors/ --context 0 ${flags}; exec bash"
+screen -dmS ${runname}_${env} sh -c "CUDA_VISIBLE_DEVICES=0 python run.py --run_name ${runname}/${env} --env_name ${env} --feat_root /data1/AfricanContinentLID/ecapalang/ ${flags}; exec bash"
 
 env="test"
-screen -dmS ${runname}_${env} sh -c "CUDA_VISIBLE_DEVICES=1 python run.py --run_name ${runname}/${env} --env_name ${env} --feat_root /mnt/usb1/AfricanContinentLID/wavlm/,/mnt/usb1/AfricanContinentLID/xvectors/ --context 0 ${flags}; exec bash"
+screen -dmS ${runname}_${env} sh -c "CUDA_VISIBLE_DEVICES=1 python run.py --run_name ${runname}/${env} --env_name ${env} --feat_root /data1/AfricanContinentLID/ecapalang/ ${flags}; exec bash"
