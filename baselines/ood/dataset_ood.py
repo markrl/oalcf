@@ -162,7 +162,6 @@ class LidData(Dataset):
         self.params = params
         self.fold = fold
         self.feat_roots = params.feat_root.split(',')
-        self.feat_names = [rr.split('/')[4] for rr in self.feat_roots]
         self.feat_files = []
         self.labels = []
         order_file = os.path.join(self.feat_roots[0], '../orders', f'{params.order_file}_order_{fold}')
