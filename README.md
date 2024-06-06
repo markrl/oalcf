@@ -11,7 +11,7 @@ pip install -r requirements.txt
 Additional configuration of Pytorch for your machine may be required.
 
 ## Feature Extraction
-Python scripts for LID x-vector and WavLM feature extraction are located in the `utils` directory. To extract a feature from an MP3 audio dataset with train/dev/test splits, copy the script to the directory containing the split directories, and run the script there. The output will be placed in a directory called `wavlm` or `xvectors` (depending on the script) with subdirectories called `train`, `test`, and `dev`.
+Python scripts for LID x-vector, ECAPA, and WavLM feature extraction are located in the `utils` directory (`extract_xvectors.py`, `extract_ecapa.py`, and `extract_wavlm.py`). To extract a feature from an MP3 audio dataset with train/dev/test splits, copy the script to the directory containing the split directories, and run the script there. The output will be placed in a directory called `wavlm`, `xvectors`, or `ecapalang` (depending on the script) with subdirectories called `train`, `test`, and `dev`.
 
 ## Demonstration
 Below are demonstrations of how to start VTD and LID training/evaluation runs using the IML paradigm. All commands should be run from the main directory of this repository. 
@@ -35,7 +35,7 @@ bash scripts/run_parallel.sh test_vtd "--sim_type fpstps --max_fb_samples 16"
 Here is the full command to run a single split LID on the African Continent data. Note that the `--feat_root` parameter now points to a different directory.
 
 ```
-python run.py --run_name test_aclid --sim_type fpstps --max_fb_samples 16 --env_name dev --feat_root /mnt/usb1/AfricanContinentLID/wavlm/,/mnt/usb1/AfricanContinentLID/xvectors/ --context 0
+python run.py --run_name test_aclid --sim_type fpstps --max_fb_samples 16 --env_name dev --feat_root /mnt/usb1/AfricanContinentLID/ecapalang/
 ```
 
 The command above only runs the development split. To run both development and test splits simultaneously, use this script:
@@ -48,7 +48,7 @@ bash scripts/run_aclid_parallel.sh test_aclid "--sim_type fpstps --max_fb_sample
 Again, here is the full command:
 
 ```
-python run.py --run_name test_aclid --sim_type fpstps --max_fb_samples 16 --env_name dev --feat_root /mnt/usb2/CaucasusRegionLID/wavlm/,/mnt/usb2/CaucasusRegionLID/xvectors/ --context 0
+python run.py --run_name test_aclid --sim_type fpstps --max_fb_samples 16 --env_name dev --feat_root /mnt/usb2/CaucasusRegionLID/ecapalang/
 ```
 
 And here is the script that runs both splits simultaneously:
