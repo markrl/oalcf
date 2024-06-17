@@ -37,26 +37,23 @@ bash scripts/run_parallel.sh test_vtd "--sim_type fpstps --max_fb_samples 16"
 Here is the full command to run a single split LID on the African Continent data. Note that the `--feat_root` parameter now points to a different directory.
 
 ```
-python run.py --run_name test_aclid --sim_type fpstps --max_fb_samples 16 --env_name dev --feat_root /mnt/usb1/AfricanContinentLID/ecapalang/
-```
-
-The command above only runs the development split. To run both development and test splits simultaneously, use this script:
-
-```
-bash scripts/run_aclid_parallel.sh test_aclid "--sim_type fpstps --max_fb_samples 16"
+python run.py --run_name test_aclid --sim_type fpstps --max_fb_samples 16 --env_name test --feat_root /mnt/usb1/AfricanContinentLID/ecapalang/
 ```
 
 ### LID Example—Caucasus Region
-Again, here is the full command:
+Here is the full command:
 
 ```
-python run.py --run_name test_aclid --sim_type fpstps --max_fb_samples 16 --env_name dev --feat_root /mnt/usb2/CaucasusRegionLID/ecapalang/
+python run.py --run_name test_aclid --sim_type fpstps --max_fb_samples 16 --env_name test --feat_root /mnt/usb2/CaucasusRegionLID/ecapalang/
 ```
 
-And here is the script that runs both splits simultaneously:
+And here is the script that runs all languages simultaneously:
+
+### Simultaneous Runs
+The commands above only runs one language. To run all tests for all languages, use the following bash script:
 
 ```
-bash scripts/run_aclid_parallel.sh test_aclid "--sim_type fpstps --max_fb_samples 16"
+bash scripts/run_lid_parallel.sh test_lid "--sim_type fpstps --max_fb_samples 16"
 ```
 
 ## Scoring
