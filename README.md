@@ -13,6 +13,8 @@ Additional configuration of Pytorch for your machine may be required.
 ## Feature Extraction
 Python scripts for LID x-vector, ECAPA, and WavLM feature extraction are located in the `utils` directory (`extract_xvectors.py`, `extract_ecapa.py`, and `extract_wavlm.py`). To extract a feature from an MP3 audio dataset with train/dev/test splits, copy the script to the directory containing the split directories, and run the script there. The output will be placed in a directory called `wavlm`, `xvectors`, or `ecapalang` (depending on the script) with subdirectories called `train`, `test`, and `dev`.
 
+Once the features are extracted, you can generate an order file that specifies the order in which LID samples are presented. This can be done by copying either `org_cluster.py` or `org_random.py` to the directory containing the split directories and running it there.
+
 ## Demonstration
 Below are demonstrations of how to start VTD and LID training/evaluation runs using the IML paradigm. All commands should be run from the main directory of this repository. 
 
@@ -55,4 +57,17 @@ And here is the script that runs both splits simultaneously:
 
 ```
 bash scripts/run_aclid_parallel.sh test_aclid "--sim_type fpstps --max_fb_samples 16"
+```
+
+## Scoring
+The scoring scripts are all contained in the `scoring` directory. The two most commonly used scripts here will be `print_basic_results.py` and `combo_scores.py`. To see the scores of a single run, use this command:
+
+```
+python scoring/print_basic_results.py output/run_dir/run_name/
+```
+
+To see the aggregated scores for multiple runs with the same parameter settings (i.e., runs initiated with one of the bash scripts), use this command:
+
+```
+python scoring/print_basic_results.py output/run_dir/*
 ```
