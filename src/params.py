@@ -70,6 +70,8 @@ def get_params():
                         help='set number of epochs per pass')
     parser.add_argument('--bootstrap', type=int, default=8,
                         help='number of bootstrap initialization samples')
+    parser.add_argument('--boot_in', default=False, action='store_true',
+                        help='extract bootstrap corpus from evaluation samples')
     parser.add_argument('--reset_weights', default=False, action='store_true',
                         help='reset model weights every pass')
     parser.add_argument('--combo', type=str, default=None,

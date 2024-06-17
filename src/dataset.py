@@ -67,20 +67,25 @@ class ImlDataModule(LightningDataModule):
         )
 
     def label_boot(self):
-        if self.params.bootstrap==0:
+        if self.params.bootstrap==0: # No bootstrap
             return
-        n_nontarget = int(self.params.bootstrap/2)
-        n_target = self.params.bootstrap-n_nontarget
-        target_idxs, nontarget_idxs = [], []
-        ii = 0
-        while ii<len(self.ds) and (len(target_idxs)<n_target or len(nontarget_idxs)<n_nontarget):
-            label = self.ds.get_label(ii)
-            if label==0 and len(nontarget_idxs)<n_nontarget:
-                nontarget_idxs.append(ii)
-            elif label==1 and len(target_idxs)<n_target:
-                target_idxs.append(ii)
-            ii += 1
-        idxs = nontarget_idxs + target_idxs
+        elif self.params.boot_in: # Construct bootstrap corpus directly from evaluation data (in-domain)
+            n_nontarget = int(self.params.bootstrap/2)
+            n_target = self.params.bootstrap-n_nontarget
+            target_idxs, nontarget_idxs = [], []
+            ii = 0
+            while ii<len(self.ds) and (len(target_idxs)<n_target or len(nontarget_idxs)<n_nontarget):
+                label = self.ds.get_label(ii)
+                if label==0 and len(nontarget_idxs)<n_nontarget:
+                    nontarget_idxs.append(ii)
+                elif label==1 and len(target_idxs)<n_target:
+                    target_idxs.append(ii)
+                ii += 1
+            idxs = nontarget_idxs + target_idxs
+        else: # Construct bootstrap corpus from training data (out-of-domain)
+            idxs = self.ds.load_external_bootstrap()
+            self.data_train.reset_idxs()
+            self.data_test.reset_idxs()
         self.data_train.activate_samples(idxs)
         self.train_active_order[self.current_batch] = idxs
 
@@ -120,8 +125,8 @@ class ImlDataModule(LightningDataModule):
         # Activate the next batch
         self.current_batch += 1
         self.data_test.deactivate_all()
-        self.data_test.activate_samples([nn for nn in range(self.current_batch*self.params.samples_per_batch, 
-                                                            (self.current_batch+1)*self.params.samples_per_batch)])
+        self.data_test.activate_samples([nn for nn in range((self.current_batch+self.ds.n_boot_batches)*self.params.samples_per_batch, 
+                                                            (self.current_batch+self.ds.n_boot_batches+1)*self.params.samples_per_batch)])
 
         # Check for bootstrap samples
         self.data_test.deactivate_samples(self.data_train.active_idxs)
@@ -170,6 +175,7 @@ class BaseVtdData(Dataset):
                  ):
         super().__init__()
         self.params = params
+        self.n_boot_batches = 0
         rm, mc = params.env_name.split('_')
         self.label_files = glob.glob(os.path.join(params.ann_root, '*.npy'))
         self.label_files = [ff for ff in self.label_files if rm in ff]
@@ -226,6 +232,31 @@ class BaseVtdData(Dataset):
         print(f'{p_target*100:.2f}% target')
         print(f'{p_nontarget*100:.2f}% nontarget')
 
+    def load_external_bootstrap(self):
+        train_params = deepcopy(self.params)
+        rm = self.params.env_name.split('_')[0]
+        if rm in ['rm1', 'rm2', 'rm3', 'rm4']:
+            train_params.env_name = 'apartment_mc19'
+        else:
+            train_params.env_name = 'rm1_mc20'
+        train_ds = BaseVtdData(train_params)
+        n_nontarget = int(self.params.bootstrap/2)
+        n_target = self.params.bootstrap-n_nontarget
+        target_idxs, nontarget_idxs = [], []
+        ii = 0
+        while ii<len(train_ds) and (len(target_idxs)<n_target or len(nontarget_idxs)<n_nontarget):
+            label = train_ds.get_label(ii)
+            if label==0 and len(nontarget_idxs)<n_nontarget:
+                nontarget_idxs.append(ii)
+            elif label==1 and len(target_idxs)<n_target:
+                target_idxs.append(ii)
+            ii += 1
+        idxs = nontarget_idxs + target_idxs
+        self.n_boot_batches = int(np.max(idxs)/self.params.samples_per_batch) + 1
+        self.label_files = train_ds.label_files[:self.n_boot_batches] + self.label_files
+        self.feat_files = train_ds.feat_files[:self.n_boot_batches] + self.feat_files
+        return idxs
+
 
 class BaseLidData(Dataset):
     def __init__(self, 
@@ -233,12 +264,15 @@ class BaseLidData(Dataset):
                  ):
         super().__init__()
         self.params = params
+        self.n_boot_batches = 0
         self.env = params.env_name
         self.feat_roots = params.feat_root.split(',')
-        self.feat_names = [rr.split('/')[4] for rr in self.feat_roots]
+        self.feat_roots = [fr[:-1] if fr[-1]=='/' else fr for fr in self.feat_roots]
+        self.feat_names = [rr.split('/')[-1] for rr in self.feat_roots]
         self.feat_files = []
         self.labels = []
-        order_file = os.path.join(self.feat_roots[0], '../orders', f'{params.order_file}_order_{self.env}')
+        prefix = os.path.join(self.feat_roots[0], '..')
+        order_file = os.path.join(prefix, 'orders', f'{params.order_file}_order_{self.env}')
         with open(order_file, 'r') as f:
             for line in f.readlines():
                 line = line.strip()
@@ -247,7 +281,7 @@ class BaseLidData(Dataset):
                     self.labels.append(1)
                 else:
                     self.labels.append(0)
-                self.feat_files.append(line)
+                self.feat_files.append(os.path.join(prefix, '{}', self.env, line+'.npy'))
 
     def __len__(self):
         return len(self.labels)
@@ -275,7 +309,7 @@ class BaseLidData(Dataset):
         feat = []
         for ii in range(index-self.params.context, index+self.params.context+1):
             idx = ii % max_idx
-            feat.append(np.concatenate([np.load(os.path.join(rr, self.env, f'{self.feat_files[idx]}.npy')) for rr in self.feat_roots]))
+            feat.append(np.concatenate([np.load(self.feat_files[idx].format(nn)) for nn in self.feat_names]))
         feat = np.stack(feat, axis=0)
         if idx_in_batch<self.params.context:
             n_zeros = self.params.context-idx_in_batch
@@ -284,6 +318,27 @@ class BaseLidData(Dataset):
             n_zeros = self.params.context+idx_in_batch-self.params.samples_per_batch+1
             feat[-n_zeros:] = 0
         return feat.reshape(-1)
+
+    def load_external_bootstrap(self):
+        train_params = deepcopy(self.params)
+        train_params.env_name = 'train'
+        train_ds = BaseLidData(train_params)
+        n_nontarget = int(self.params.bootstrap/2)
+        n_target = self.params.bootstrap-n_nontarget
+        target_idxs, nontarget_idxs = [], []
+        ii = 0
+        while ii<len(train_ds) and (len(target_idxs)<n_target or len(nontarget_idxs)<n_nontarget):
+            label = train_ds.get_label(ii)
+            if label==0 and len(nontarget_idxs)<n_nontarget:
+                nontarget_idxs.append(ii)
+            elif label==1 and len(target_idxs)<n_target:
+                target_idxs.append(ii)
+            ii += 1
+        idxs = nontarget_idxs + target_idxs
+        self.n_boot_batches = int(np.max(idxs)/self.params.samples_per_batch) + 1
+        self.labels = train_ds.labels[:self.n_boot_batches*self.params.samples_per_batch] + self.labels
+        self.feat_files = train_ds.feat_files[:self.n_boot_batches*self.params.samples_per_batch] + self.feat_files
+        return idxs
 
 
 class ImlData(Dataset):
@@ -367,6 +422,10 @@ class ImlData(Dataset):
             feats.append(self.base_ds[idx][0])
         return torch.stack(feats, dim=0)
 
+    def reset_idxs(self):
+        self.active_idxs = []
+        self.inactive_idxs = [nn for nn in range(len(self.base_ds))]
+
 if __name__=='__main__':
     from params import get_params
     params = get_params()
@@ -374,6 +433,8 @@ if __name__=='__main__':
     data_module.ds[len(data_module.ds)-1]
     data_module.label_boot()
     data_module.next_batch()
+    print(data_module.data_test[4])
+    print(data_module.data_train[0])
     data_module.transfer_samples([2,4])
     data_module.next_batch()
     data_module.transfer_samples([3,5])
