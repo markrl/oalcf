@@ -164,4 +164,6 @@ lightning_logs/
 output/
 plotting/plot_out/
 budgets/
-baselines/ood/output
+baselines/ood/output/
+old_output/
+baselines/ood/old_output/
