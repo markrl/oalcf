@@ -433,10 +433,9 @@ if __name__=='__main__':
     data_module.ds[len(data_module.ds)-1]
     data_module.label_boot()
     data_module.next_batch()
-    print(data_module.data_test[4])
-    print(data_module.data_train[0])
     data_module.transfer_samples([2,4])
     data_module.next_batch()
     data_module.transfer_samples([3,5])
     print(data_module.get_current_session_name())
     data_module.ds.get_class_balance()
+    print(len(data_module.ds), 'samples')

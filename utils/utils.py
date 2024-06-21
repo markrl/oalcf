@@ -140,7 +140,7 @@ def update_xent(module, data_module):
 
 def write_header(out_file, al_methods, ddm_exists):
     f = open(out_file, 'w')
-    f.write('pass,pre_dcf,pre_fnr,pre_fpr,dcf,fnr,fpr,pre_ns,pre_ps,ns,ps,pre_fns,pre_fps,fns,fps,p_target,p_nontarget,n_samples,cum_pre_dcf,cum_dcf,n_al,n_cf,drift')
+    f.write('pass,pre_dcf,pre_fnr,pre_fpr,dcf,fnr,fpr,pre_ns,pre_ps,ns,ps,pre_fns,pre_fps,fns,fps,p_target,p_nontarget,n_samples,cum_pre_dcf,cum_dcf,n_al,cf_p,cf_n,drift')
     if len(al_methods)==1 and al_methods[0]!='rand':
         f.write(',metric')
     if ddm_exists:
@@ -148,7 +148,7 @@ def write_header(out_file, al_methods, ddm_exists):
     f.write('\n')
     f.close()
 
-def write_session(out_file, current_batch, test_results, error_counts, class_balance, n_samples, metric, drift_dist, n_al, n_cf, has_drift):
+def write_session(out_file, current_batch, test_results, error_counts, class_balance, n_samples, metric, drift_dist, n_al, cf_p, cf_n, has_drift):
     pre_fps, pre_fns, pre_ps, pre_ns, fps, fns, ps, ns = error_counts
     p_target, p_nontarget = class_balance
     f = open(out_file, 'a')
@@ -171,7 +171,7 @@ def write_session(out_file, current_batch, test_results, error_counts, class_bal
     fnr = torch.sum(torch.LongTensor(fns))/torch.sum(torch.LongTensor(ps)) if torch.sum(torch.LongTensor(ps))>0 else 0
     fpr = torch.sum(torch.LongTensor(fps))/torch.sum(torch.LongTensor(ns)) if torch.sum(torch.LongTensor(ns))>0 else 0
     cum_dcf = 0.75*fnr + 0.25*fpr
-    f.write(f',{cum_dcf:.4f},{n_al:d},{n_cf:d},{has_drift:d}')
+    f.write(f',{cum_dcf:.4f},{n_al:d},{cf_p:d},{cf_n:d},{has_drift:d}')
     if metric is not None:
         f.write(f',{metric:.4f}')
     if drift_dist is not None:

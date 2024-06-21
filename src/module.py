@@ -21,6 +21,7 @@ class VtdModule(LightningModule):
             self.automatic_optimization = False
         else:
             self.model = CompClassModel(params)
+            
         if params.class_loss=='xent':
             self.criterion = nn.NLLLoss(weight=torch.tensor([1, params.target_weight]))
         elif params.class_loss=='dcf':

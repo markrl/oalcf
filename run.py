@@ -22,7 +22,7 @@ from pdb import set_trace
 
 def main():
     # Set pytorch precision
-    torch.set_float32_matmul_precision('medium')
+    torch.set_float32_matmul_precision('high')
     # Get and handle parameters
     params = get_params()
     if params.overfit_batches >= 1:
@@ -238,6 +238,9 @@ def main():
         cf_idxs = cf_sim.simulate(data_module, module)
         n_cf = len(cf_idxs)
         if len(cf_idxs) > 0:
+            cf_classes = [data_module.data_test[ii][1] for ii in cf_idxs]
+            cf_p = int(np.sum(cf_classes))
+            cf_n = n_cf - cf_p
             data_module.transfer_samples(cf_idxs)
             if base_state_dict is None:
                 # Handle exception where a batch only contains 1 sample
@@ -246,6 +249,8 @@ def main():
                 reset_trainer(trainer)
                 # Train model on adaptation pool
                 trainer.fit(module, data_module)
+        else:
+            cf_p, cf_n = 0, 0
         # Write results to file
         if not params.debug:
             fps.append(int(test_results[0]['test/fps']))
@@ -254,7 +259,7 @@ def main():
             ns.append(int(test_results[0]['test/ns']))
             metric = None if len(al_methods)>1 or mm=='rand' else metrics_dict[mm]
             write_session(out_file, data_module.current_batch, test_results, (pre_fps,pre_fns,pre_ps,pre_ns,fps,fns,ps,ns), 
-                            data_module.get_class_balance(), len(data_module.data_train), metric, dist, n_al, n_cf, has_drift)
+                            data_module.get_class_balance(), len(data_module.data_train), metric, dist, n_al, cf_p, cf_n, has_drift)
         # Prepare transition to next batch
         module.n_train = len(data_module)
         data_module.next_batch()
