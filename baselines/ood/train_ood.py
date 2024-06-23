@@ -90,7 +90,7 @@ def main():
         ns.append(int(test_results[0]['test/ns']))
         write_session(out_file, 0, test_results, (fps,fns,ps,ns,fps,fns,ps,ns), 
                         data_module.get_class_balance(), len(data_module.data_train), 
-                        None, None, len(data_module.data_train)+len(data_module.data_val), 0, 0)
+                        None, None, len(data_module.data_train)+len(data_module.data_val), 0, 0, 0)
     
     # Save final model
     if not params.debug:

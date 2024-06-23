@@ -22,10 +22,10 @@ def main(score_path):
     p_samples = n_samples/(ns+ps+n_samples)
     n_boot = sheet['n_samples'][0] - sheet['n_al'][0]
     n_al = np.sum(sheet['n_al'])
-    n_cf_tp = np.sum(sheet['n_cf_tp'])
-    n_cf_fp = np.sum(sheet['n_cf_fp'])
-    print('DCF\tFNR\tFPR\tIMLM\t#bootstrap labels\t#AL labels\t#CF FP labels\t#CF TP labels\t% target in adapt pool\ttot labels/tot samples')
-    print(f'{dcf:.4f}\t{fnr:.4f}\t{fpr:.4f}\t{imlm:.4f}\t{n_boot:d}\t{n_al:d}\t{n_cf_fp:d}\t{n_cf_tp:d}\t{perc_targ:.2f}\t{p_samples:.2f}')
+    n_cf_tp = np.sum(sheet['cf_tp'])
+    n_cf_fp = np.sum(sheet['cf_fp'])
+    print('DCF\tFNR\tFPR\tIMLM\t#bootstrap\t#AL\t#CF FP\t#CF TP\t% target in adapt pool\ttot labels/tot samples')
+    print(f'{dcf:.4f}\t{fnr:.4f}\t{fpr:.4f}\t{imlm:.4f}\t{n_boot:d}\t\t{n_al:d}\t{n_cf_fp:d}\t{n_cf_tp:d}\t{perc_targ:.2f}\t\t\t{p_samples:.4f}')
 
 if __name__=='__main__':
     if len(sys.argv) < 2:
