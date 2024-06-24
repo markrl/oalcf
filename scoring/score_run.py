@@ -20,7 +20,7 @@ def main(score_path):
     fnr = fns/ps
     fpr = fps/ns
     p_samples = n_samples/(ns+ps+n_samples)
-    n_boot = sheet['n_samples'][0] - sheet['n_al'][0]
+    n_boot = sheet['n_samples'][0] - sheet['n_al'][0] - sheet['cf_tp'][0] - sheet['cf_fp'][0]
     n_al = np.sum(sheet['n_al'])
     n_cf_tp = np.sum(sheet['cf_tp'])
     n_cf_fp = np.sum(sheet['cf_fp'])
