@@ -6,6 +6,7 @@ from pytorch_lightning import LightningDataModule
 import numpy as np
 from statistics import mean
 from copy import deepcopy
+import pandas as pd
 
 from pdb import set_trace
 
@@ -303,17 +304,21 @@ class VtdEvalData(Dataset):
             self.label_files.remove(lf)
             self.feat_files.remove(ff)
 
+        sheet = pd.read_csv(os.path.join(params.eval_run, 'scores.csv'))
+        n_bootstrap = sheet['n_samples'][0] - sheet['n_al'][0] - sheet['cf_tp'][0] - sheet['cf_fp'][0]
+
         self.active_idxs = [nn for nn in range(len(self.feat_files)*self.params.samples_per_batch)]
-        al_path = os.path.join(params.eval_run, 'al_samples.txt')
-        with open(al_path, 'r') as f:
-            used_idxs = f.readlines()
-        for uu in used_idxs:
-            af,idx = uu.strip().split(',')
-            idx = int(idx)
-            rm,se,mc,splt = af.split('_')
-            af = '_'.join((rm,se,mc,'{}',splt)) + '.npy'
-            al_idx = np.where([ff==af for ff in self.feat_files])[0][0]*self.params.samples_per_batch + idx
-            self.active_idxs.remove(al_idx)
+        # al_path = os.path.join(params.eval_run, 'al_samples.txt')
+        # with open(al_path, 'r') as f:
+        #     used_idxs = f.readlines()
+        # used_idxs = used_idxs[n_bootstrap:]
+        # for uu in used_idxs:
+        #     af,idx = uu.strip().split(',')
+        #     idx = int(idx)
+        #     rm,se,mc,splt = af.split('_')
+        #     af = '_'.join((rm,se,mc,'{}',splt)) + '.npy'
+        #     al_idx = np.where([ff==af for ff in self.feat_files])[0][0]*self.params.samples_per_batch + idx
+        #     self.active_idxs.remove(al_idx)
 
     def __len__(self):
         return len(self.active_idxs)

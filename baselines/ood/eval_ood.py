@@ -6,7 +6,7 @@ import sys
 from pytorch_lightning import Trainer
 
 from src.module import VtdModule
-from baselines.ood.dataset_ood import VtdEvalDataModule
+from baselines.ood.dataset_ood import SupervisedEvalDataModule
 from baselines.ood.params_ood import get_params
 from utils.utils import write_header, write_session
 
@@ -23,7 +23,7 @@ def main():
     out_file = os.path.join(out_dir, 'baseline_ood_scores.csv')
     write_header(out_file, [], False)
     # Initialize lightning data module and lightning module
-    data_module = VtdEvalDataModule(params)
+    data_module = SupervisedEvalDataModule(params)
     module = VtdModule(params)
     module.model.load_state_dict(torch.load(model_path))
     # Instantiate trainer
@@ -43,14 +43,14 @@ def main():
     # Write results to file
     fps, fns, ps, ns = [], [], [], []
     train_info = np.genfromtxt(os.path.join('baselines/ood/output', params.ckpt_name, 'scores.csv'), delimiter=',', skip_header=1)
-    train_len = int(train_info[10])
+    train_len = int(train_info[17])
     if not params.debug:
         fps.append(int(test_results[0]['test/fps']))
         fns.append(int(test_results[0]['test/fns']))
         ps.append(int(test_results[0]['test/ps']))
         ns.append(int(test_results[0]['test/ns']))
-        write_session(out_file, 0, test_results, (fps,fns,ps,ns), 
-                        data_module.get_class_balance(), train_len, None, None)
+        write_session(out_file, 0, test_results, (fps,fns,ps,ns,fps,fns,ps,ns), 
+                        data_module.get_class_balance(), train_len, None, None, 0, 0, 0, 0)
 
 if __name__=='__main__':
     import time

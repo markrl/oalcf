@@ -7,9 +7,9 @@ echo $device
 for dd in output/${runname}/*; do
     if [[ $dd == *"rm"* ]]
     then
-        mm="train_lb"
+        mm="thesis_baseline_vtd/lb"
     else
-        mm="train_sri"
+        mm="thesis_baseline_vtd/sri"
     fi
 
     if [ -z $device ]

@@ -6,9 +6,12 @@ import pandas as pd
 
 from pdb import set_trace
 
-def main(file_list):
+def main(dir_code):
     ps, ns, fps, fns = [], [], [], []
     n_samples, n_adapt, n_target = [], [], []
+    dir_components = dir_code.split('_')
+    dirs = ['_'.join(dir_components + ['vtd']), '_'.join(dir_components + ['lid'])]
+    file_list = glob.glob(os.path.join('output', dirs[0], '*')) + glob.glob(os.path.join('output', dirs[1], '*'))
     for ff in file_list:
         if 'scores.csv' not in ff:
             ff = os.path.join(ff, 'scores.csv')
@@ -36,4 +39,4 @@ def main(file_list):
 if __name__=='__main__':
     if len(sys.argv) < 2:
         exit()
-    main(sys.argv[1:])
+    main(sys.argv[1])
