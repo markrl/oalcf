@@ -253,7 +253,7 @@ def extract_grad_lens(data_module, module, criterion):
                 grad = torch.autograd.grad(loss, list(model.parameters()), allow_unused=True)
                 grad = [gg.reshape(-1) for gg in grad if gg is not None]
                 grad_len.append(torch.linalg.vector_norm(torch.cat(grad)))
-                all_grad_lens.append(torch.cat(grad_len))
+                all_grad_lens.append(torch.stack(grad_len))
     return torch.stack(all_grad_lens, dim=0).cpu()
 
 def get_dists(samples, keep_same_idx=True, until_idx=None):
