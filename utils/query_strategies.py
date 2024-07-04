@@ -31,7 +31,7 @@ class StrategyManager:
                 self.criterion = DcfLoss()
         
         if 'alce' in params.al_methods.split(','):
-            self.cost_obj = CostEmbeddingAL(classes=[0,1])
+            self.cost_obj = CostEmbeddingAL(classes=[0,1], cost_matrix=np.array([[0, 0.25], [0.75, 0]]))
 
     def select_queries(self, data_module, method_list, module, n_queries):
         self.logits = self.extract_logits(data_module, module)
@@ -91,8 +91,12 @@ class StrategyManager:
             y_cand = torch.full(size=(self.logits.shape[0],), fill_value=MISSING_LABEL)
             y = torch.cat([y_cand,y], dim=0)
             X = self.extract_features(data_module)
-            idxs_dict['alce'] = self.cost_obj.query(X, y, batch_size=n_queries)
-            metrics_dict['alce'] = 1
+            sorted_idxs, scores = self.cost_obj.query(X, y, batch_size=self.logits.shape[0], return_utilities=True)
+            metrics_dict['alce'] = np.mean(scores[0, :len(sorted_idxs)])
+            if self.combo:
+                rank_dict['alce'] = sorted_idxs
+            else:
+                idxs_dict['alce'] = self.get_top_n(sorted_idxs, n_queries, data_module)
 
         if self.combo=='rank':
             all_ranks = [rank_dict[kk] for kk in rank_dict.keys()]

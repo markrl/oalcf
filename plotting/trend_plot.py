@@ -7,23 +7,29 @@ import matplotlib.pyplot as plt
 
 from pdb import set_trace
 
-def main(dir_code, metric='dcf', pre_post_diff='post'):
+def main(dir_code, metric='dcf', pre_post_diff='post', corpus_task_paradigm='corpus'):
     outpath = 'plotting/plot_out/trends.png'
     corpus_dict = {'sri': ['rm1', 'rm2', 'rm3', 'rm4'], 'lb': ['apartment', 'hotel', 'office'],
                     'ac': ['yo', 'ha', 'bas'], 'cr': ['ckb', 'cv', 'kmr', 'tt', 'hy-AM', 'sr', 'ky']}
+    task_dict = {'vtd': ['rm1', 'rm2', 'rm3', 'rm4', 'apartment', 'hotel', 'office'],
+                    'slv': ['yo', 'ha', 'bas', 'ckb', 'cv', 'kmr', 'tt', 'hy-AM', 'sr', 'ky']}
+    paradigm_dict = {'oal': ['oal'], 'oal-cf': ['oalcf']}
+    run_dict = {}
     ps, ns, fps, fns = [], [], [], []
     pre_ps, pre_ns, pre_fps, pre_fns = [], [], [], []
-    pre_n_adapt, n_adapt, corpora = [], [], []
-    if dir_code[-1] == '_':
-        dir_code = dir_code[:-1]
-    dir_components = dir_code.split('_')
-    dirs = ['_'.join(dir_components + ['vtd']), '_'.join(dir_components + ['lid'])]
-    file_list = glob.glob(os.path.join('output', dirs[0], '*')) + glob.glob(os.path.join('output', dirs[1], '*'))
+    pre_n_adapt, n_adapt = [], []
+    al_metric = []
+    corpora, tasks, paradigms, runs = [], [], [], []
+    dir_code = dir_code.replace('%', '*')
+    file_list = []
+    for dc in dir_code.split(','):
+        file_list += glob.glob(os.path.join(dc, '*', 'scores.csv'))
+    file_list.sort()
     for ff in file_list:
-        if 'scores.csv' not in ff:
-            ff = os.path.join(ff, 'scores.csv')
         sheet = pd.read_csv(ff)
-        run_name = ff.split('/')[-2].split('_')[0]
+        env_name = ff.split('/')[-2].split('_')[0]
+        paradigm_name = ff.split('/')[-3].split('_')[1]
+        run_name = ff.split('/')[-3].split('_')[2]
         n_bootstrap = sheet['n_samples'][0]-sheet['n_al'][0]
         ps.append(np.cumsum(np.array(sheet['ps'])))
         ns.append(np.cumsum(np.array(sheet['ns'])))
@@ -35,9 +41,18 @@ def main(dir_code, metric='dcf', pre_post_diff='post'):
         pre_fps.append(np.cumsum(np.array(sheet['pre_fps'])))
         pre_fns.append(np.cumsum(np.array(sheet['pre_fns'])))
         pre_n_adapt.append(n_bootstrap+np.cumsum(np.array(sheet['n_al']))-sheet['n_al'][0])
+        al_metric.append(np.array(sheet['metric']))
         for kk in corpus_dict:
-            if run_name in corpus_dict[kk]:
+            if env_name in corpus_dict[kk]:
                 corpora.append(kk)
+        for kk in task_dict:
+            if env_name in task_dict[kk]:
+                tasks.append(kk)
+        for kk in paradigm_dict:
+            if paradigm_name in paradigm_dict[kk]:
+                paradigms.append(kk)
+        run_dict[run_name] = [run_name]
+        runs.append(run_name)
 
     if pre_post_diff=='post':
         fprs = [np.nan_to_num(fp/n) for fp,n in zip(fps,ns)]
@@ -71,15 +86,39 @@ def main(dir_code, metric='dcf', pre_post_diff='post'):
         scores = fpr
     elif metric=='imlm':
         scores = imlms
+    elif metric=='plateau':
+        scores = al_metric
+
+    if corpus_task_paradigm=='corpus':
+        decider = corpora
+        decider_dict = corpus_dict
+    elif corpus_task_paradigm=='task':
+        decider = tasks
+        decider_dict = task_dict
+    elif corpus_task_paradigm=='paradigm':
+        decider = paradigms
+        decider_dict = paradigm_dict
+    elif corpus_task_paradigm=='run':
+        decider = runs
+        decider_dict = run_dict
     
     scores_dict = {}
-    for kk in corpus_dict:
-        corpus_scores = [ss for cc,ss in zip(corpora,scores) if cc==kk]
-        min_len = np.min([len(ss) for ss in corpus_scores])
-        corpus_scores = [ss[:min_len] for ss in corpus_scores]
-        plt.plot(np.mean(corpus_scores, axis=0), label=kk.upper())
+    for kk in decider_dict:
+        corpus_scores = [ss for cc,ss in zip(decider,scores) if cc==kk]
+        if len(corpus_scores) > 0:
+            min_len = np.min([len(ss) for ss in corpus_scores])
+            corpus_scores = [ss[:min_len] for ss in corpus_scores]
+            corpus_scores = np.mean(corpus_scores, axis=0)
+            if metric=='plateau':
+                corpus_scores = corpus_scores-corpus_scores.min()
+                corpus_scores = corpus_scores/corpus_scores.max()
+                if corpus_scores[0] > corpus_scores[-1]:
+                    corpus_scores = 1 - corpus_scores
+            plt.plot(corpus_scores, label=kk.upper())
     plt.xlabel('Session')
     plt.ylabel(metric.upper())
+    # plt.xlim([0, min_len-1])
+    # plt.ylim([0, 0.45])
     plt.legend()
     fig = plt.gcf()
     fig.set_size_inches(8.5, 3)
@@ -93,5 +132,7 @@ if __name__=='__main__':
         main(sys.argv[1])
     elif len(sys.argv) == 3:
         main(sys.argv[1], sys.argv[2])
-    elif len(sys.argv) > 3:
+    elif len(sys.argv) == 4:
         main(sys.argv[1], sys.argv[2], sys.argv[3])
+    elif len(sys.argv) > 4:
+        main(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
