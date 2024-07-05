@@ -20,17 +20,17 @@ def main(score_paths):
         fns = np.sum(sheet['fns'])
         ns = np.sum(sheet['pre_ns'])
         ps = np.sum(sheet['pre_ps'])
-        imlm = (fps+n_samples)/(ps+ns) + fns/ps
         fnr = fns/ps
         fpr = fps/ns
         dcf = 0.75*fnr + 0.25*fpr
-        p_samples = n_samples/(ns+ps+n_samples)
+        p_samples = n_samples/(ns+ps)
         n_boot = sheet['n_samples'][0] - sheet['n_al'][0] - sheet['cf_tp'][0] - sheet['cf_fp'][0]
         n_al = np.sum(sheet['n_al'])
+        imlm = (fps+n_boot+n_al)/(ps+ns) + fns/ps
         n_cf_tp = np.sum(sheet['cf_tp'])
         n_cf_fp = np.sum(sheet['cf_fp'])
         n_cf = n_cf_tp + n_cf_fp
-        print(f'{dcf:.4f}\t{fnr:.4f}\t{fpr:.4f}\t{imlm:.4f}\t{n_boot:d}\t\t{n_al:d}\t{fns:d}\t{n_cf:d}\t\t{perc_targ:.2f}\t\t\t{p_samples:.4f}')
+        print(f'{dcf:.4f}\t{fnr:.4f}\t{fpr:.4f}\t{imlm:.4f}\t{n_boot:d}\t\t{n_al:d}\t{fps:d}\t{n_cf:d}\t\t{perc_targ:.2f}\t\t\t{p_samples:.4f}')
 
 if __name__=='__main__':
     if len(sys.argv) < 2:

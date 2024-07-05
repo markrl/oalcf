@@ -8,7 +8,7 @@ from pdb import set_trace
 
 def main(file_list):
     ps, ns, fps, fns = [], [], [], []
-    n_samples, n_adapt, n_target = [], [], []
+    n_samples, n_adapt, n_target, n_boot = [], [], [], []
     for ff in file_list:
         if 'scores.csv' not in ff:
             ff = os.path.join(ff, 'scores.csv')
@@ -23,11 +23,12 @@ def main(file_list):
         else:
             n_adapt.append(np.array(sheet['n_samples'])[-1])
             n_target.append(n_adapt[-1]*np.array(sheet['p_target'])[-1])
+        n_boot.append(sheet['n_samples'][0]-sheet['n_al'][0])
         n_samples.append(np.sum(sheet['pre_ps'])+np.sum(sheet['pre_ns']))
     fnr = np.sum(fns)/np.sum(ps)
     fpr = np.sum(fps)/np.sum(ns)
     dcf = 0.25*fpr + 0.75*fnr
-    imlm = (np.sum(fps)+np.sum(n_adapt))/np.sum(n_samples) + np.sum(fns)/np.sum(ps)
+    imlm = (np.sum(fps)+np.sum(n_adapt)+np.sum(n_boot))/np.sum(n_samples) + np.sum(fns)/np.sum(ps)
     p_adapt = np.sum(n_adapt)/np.sum(n_samples)*100
     p_target = np.sum(n_target)/np.sum(n_adapt)*100
     print('DCF\tFNR\tFPR\tIMLM\t% adapt\t% targ')
