@@ -20,7 +20,7 @@ def main(score_paths):
         fns = np.sum(sheet['fns'])
         ns = np.sum(sheet['pre_ns'])
         ps = np.sum(sheet['pre_ps'])
-        imlm = (fps+n_samples)/(np.sum(sheet['pre_ps'])+np.sum(sheet['pre_ns'])) + fns/ps
+        imlm = (fps+n_samples)/(ps+ns) + fns/ps
         fnr = fns/ps
         fpr = fps/ns
         dcf = 0.75*fnr + 0.25*fpr

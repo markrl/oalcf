@@ -25,8 +25,8 @@ def main(run1, run2, prefix=''):
         n_samples = np.array(sheet['n_samples'])[-1]
         fns = np.sum(sheet[prefix+'fns'])
         fps = np.sum(sheet[prefix+'fps'])
-        ns = np.sum(sheet[prefix+'ns'])
-        ps = np.sum(sheet[prefix+'ps'])
+        ns = np.sum(sheet['pre_ns'])
+        ps = np.sum(sheet['pre_ps'])
         if ps==0:
             fnrs1.append(0)
             imlms1.append((fps+n_samples)/ns)
@@ -38,7 +38,7 @@ def main(run1, run2, prefix=''):
         else:
             fnrs1.append(fns/ps)
             fprs1.append(fps/ns)
-            imlms1.append((fps+n_samples)/ns + fns/ps)
+            imlms1.append((fps+n_samples)/(ns+ps) + fns/ps)
 
     dcfs2, fnrs2, fprs2, imlms2 = [], [], [], []
     for pp in paths2:
@@ -47,8 +47,8 @@ def main(run1, run2, prefix=''):
         n_samples = np.array(sheet['n_samples'])[-1]
         fns = np.sum(sheet[prefix+'fns'])
         fps = np.sum(sheet[prefix+'fps'])
-        ns = np.sum(sheet[prefix+'ns'])
-        ps = np.sum(sheet[prefix+'ps'])
+        ns = np.sum(sheet['pre_ns'])
+        ps = np.sum(sheet['pre_ps'])
         if ps==0:
             fnrs2.append(0)
             imlms2.append((fps+n_samples)/ns)
@@ -60,7 +60,7 @@ def main(run1, run2, prefix=''):
         else:
             fnrs2.append(fns/ps)
             fprs2.append(fps/ns)
-            imlms2.append((fps+n_samples)/ns + fns/ps)
+            imlms2.append((fps+n_samples)/(ns+ps) + fns/ps)
 
     dcf_pval = ttest_rel(dcfs1, dcfs2, alternative='less').pvalue
     fnr_pval = ttest_rel(fnrs1, fnrs2, alternative='less').pvalue

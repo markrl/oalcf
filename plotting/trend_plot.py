@@ -55,20 +55,20 @@ def main(dir_code, metric='dcf', pre_post_diff='post', corpus_task_paradigm='cor
         runs.append(run_name)
 
     if pre_post_diff=='post':
-        fprs = [np.nan_to_num(fp/n) for fp,n in zip(fps,ns)]
-        fnrs = [np.nan_to_num(fn/p) for fn,p in zip(fns,ps)]
+        fprs = [np.nan_to_num(fp/n) for fp,n in zip(fps,pre_ns)]
+        fnrs = [np.nan_to_num(fn/p) for fn,p in zip(fns,pre_ps)]
         dcfs = [0.75*fnr+0.25*fpr for fnr,fpr in zip(fnrs,fprs)]
-        imlms = [(fp+na)/(n+p)+np.nan_to_num(fn/p) for fp,na,n,p,fn in zip(fps,n_adapt,ns,ps,fns)]
+        imlms = [(fp+na)/(n+p)+np.nan_to_num(fn/p) for fp,na,n,p,fn in zip(fps,n_adapt,pre_ns,pre_ps,fns)]
     elif pre_post_diff=='pre':
         fprs = [np.nan_to_num(fp/n) for fp,n in zip(pre_fps,pre_ns)]
         fnrs = [np.nan_to_num(fn/p) for fn,p in zip(pre_fns,pre_ps)]
         dcfs = [0.75*fnr+0.25*fpr for fnr,fpr in zip(fnrs,fprs)]
         imlms = [(fp+na)/(n+p)+np.nan_to_num(fn/p) for fp,na,n,p,fn in zip(pre_fps,pre_n_adapt,pre_ns,pre_ps,pre_fns)]
     else:
-        post_fprs = [np.nan_to_num(fp/n) for fp,n in zip(fps,ns)]
-        post_fnrs = [np.nan_to_num(fn/p) for fn,p in zip(fns,ps)]
+        post_fprs = [np.nan_to_num(fp/n) for fp,n in zip(fps,pre_ns)]
+        post_fnrs = [np.nan_to_num(fn/p) for fn,p in zip(fns,pre_ps)]
         post_dcfs = [0.75*fnr+0.25*fpr for fnr,fpr in zip(post_fnrs,post_fprs)]
-        post_imlms = [(fp+na)/(n+p)+np.nan_to_num(fn/p) for fp,na,n,p,fn in zip(fps,n_adapt,ns,ps,fns)]
+        post_imlms = [(fp+na)/(n+p)+np.nan_to_num(fn/p) for fp,na,n,p,fn in zip(fps,n_adapt,pre_ns,pre_ps,fns)]
         pre_fprs = [np.nan_to_num(fp/n) for fp,n in zip(pre_fps,pre_ns)]
         pre_fnrs = [np.nan_to_num(fn/p) for fn,p in zip(pre_fns,pre_ps)]
         pre_dcfs = [0.75*fnr+0.25*fpr for fnr,fpr in zip(pre_fnrs,pre_fprs)]
@@ -117,8 +117,8 @@ def main(dir_code, metric='dcf', pre_post_diff='post', corpus_task_paradigm='cor
             plt.plot(corpus_scores, label=kk.upper())
     plt.xlabel('Session')
     plt.ylabel(metric.upper())
-    # plt.xlim([0, min_len-1])
-    # plt.ylim([0, 0.45])
+    plt.xlim([0, min_len-1])
+    plt.ylim([0, 0.45])
     plt.legend()
     fig = plt.gcf()
     fig.set_size_inches(8.5, 3)

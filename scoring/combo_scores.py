@@ -13,8 +13,8 @@ def main(file_list):
         if 'scores.csv' not in ff:
             ff = os.path.join(ff, 'scores.csv')
         sheet = pd.read_csv(ff)
-        ps.append(np.sum(sheet['ps']))
-        ns.append(np.sum(sheet['ns']))
+        ps.append(np.sum(sheet['pre_ps']))
+        ns.append(np.sum(sheet['pre_ns']))
         fps.append(np.sum(sheet['fps']))
         fns.append(np.sum(sheet['fns']))
         if 'n_al' in sheet.keys() and np.array(sheet['n_al'])[-1]>0:
@@ -24,8 +24,8 @@ def main(file_list):
             n_adapt.append(np.array(sheet['n_samples'])[-1])
             n_target.append(n_adapt[-1]*np.array(sheet['p_target'])[-1])
         n_samples.append(np.sum(sheet['pre_ps'])+np.sum(sheet['pre_ns']))
-    fnr = np.sum(fns)/np.sum(sheet['pre_ps'])
-    fpr = np.sum(fps)/np.sum(sheet['pre_ns'])
+    fnr = np.sum(fns)/np.sum(ps)
+    fpr = np.sum(fps)/np.sum(ns)
     dcf = 0.25*fpr + 0.75*fnr
     imlm = (np.sum(fps)+np.sum(n_adapt))/np.sum(n_samples) + np.sum(fns)/np.sum(ps)
     p_adapt = np.sum(n_adapt)/np.sum(n_samples)*100
