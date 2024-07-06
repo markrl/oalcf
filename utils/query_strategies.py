@@ -195,11 +195,14 @@ class StrategyManager:
         return logits
 
     def extract_features(self, data_module):
+        orig_drop = data_module.drop_last
+        data_module.drop_last = False
         test_loader = data_module.test_dataloader()
         train_loader = data_module.train_dataloader()
         test_feats = torch.cat([batch[0] for batch in test_loader], dim=0)
         train_feats = torch.cat([batch[0] for batch in train_loader], dim=0)
         feats = torch.cat([test_feats, train_feats], dim=0)
+        data_module.drop_last = orig_drop
         return feats
 
 def extract_grad_lens(data_module, module, criterion):
