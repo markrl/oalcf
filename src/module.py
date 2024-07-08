@@ -7,7 +7,7 @@ from pytorch_lightning import LightningModule
 
 from src.model import CompClassModel
 from ensemble.ensemble_model import ArfModel
-from utils.utils import ContrastiveLoss, DcfLoss, ImlmLoss
+from utils.utils import ContrastiveLoss, DcfLoss, ImlmLoss, aDcfLoss, FocalLoss
 
 from pdb import set_trace
 
@@ -22,12 +22,17 @@ class VtdModule(LightningModule):
         else:
             self.model = CompClassModel(params)
             
+        reduction = 'none' if params.cb_loss else 'mean'
         if params.class_loss=='xent':
             self.criterion = nn.NLLLoss(weight=torch.tensor([1, params.target_weight]))
         elif params.class_loss=='dcf':
             self.criterion = DcfLoss(fnr_weight=0.75, smax_weight=params.dsmax_mult, learn_mult=params.learn_mult, learn_error_weight=params.learn_error_weight)
         elif params.class_loss=='imlm':
             self.criterion = ImlmLoss(smax_weight=params.dsmax_mult, learn_mult=params.learn_mult)
+        elif params.class_loss=='adcf':
+            self.criterion = aDcfLoss(fnr_weight=0.75)
+        elif params.class_loss=='focal':
+            self.criterion = FocalLoss(gamma=params.gamma, reduction=reduction)
         self.contrast_criterion = ContrastiveLoss()
         self.params = params
         self.save_hyperparameters()
@@ -64,6 +69,10 @@ class VtdModule(LightningModule):
                     + self.contrast_criterion(embed1,embed2,y1,y2)
         else:
             loss = self.criterion(y_hat,y1)
+        if self.params.cb_loss:
+            loss[y1==0] = loss[y1==0]*(1-self.beta)/(1-self.beta**self.n_nontarget)
+            loss[y1==1] = loss[y1==1]*(1-self.beta)/(1-self.beta**self.n_target)
+            loss = torch.mean(loss)
         self.log('train/loss', loss.item(), on_step=False, on_epoch=True)
         pred = torch.argmax(y_hat, dim=-1)
         acc = torch.mean(1.0*(pred==y1))

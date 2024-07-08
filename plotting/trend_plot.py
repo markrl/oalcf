@@ -116,9 +116,12 @@ def main(dir_code, metric='dcf', pre_post_diff='post', corpus_task_paradigm='cor
                     corpus_scores = 1 - corpus_scores
             plt.plot(corpus_scores, label=kk.upper())
     plt.xlabel('Session')
-    plt.ylabel(metric.upper())
+    if metric=='plateau':
+        plt.ylabel('Scaled AL Strategy Metric')
+    else:
+        plt.ylabel(metric.upper())
     plt.xlim([0, min_len-1])
-    plt.ylim([0, 0.45])
+    # plt.ylim([0, 0.45])
     plt.legend()
     fig = plt.gcf()
     fig.set_size_inches(8.5, 3)

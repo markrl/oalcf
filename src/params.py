@@ -56,6 +56,14 @@ def get_params():
                         help='learn the error weighting for DCF loss')
     parser.add_argument('--auto_weight', default=False, action='store_true',
                         help='automatically change cross-entropy weighting based on training distribution')
+    parser.add_argument('--auto_mult', type=float, default=1.0,
+                        help='target cost for inverse weighting')
+    parser.add_argument('--cb_loss', default=False, action='store_true',
+                        help='use class-balanced loss')
+    parser.add_argument('--beta', type=float, default=0.999,
+                        help='factor for cb loss')
+    parser.add_argument('--gamma', type=float, default=2.0,
+                        help='focus parameter for focal loss')
     parser.add_argument('--load_pretrained', type=str, default=None,
                         help='path to pretrained model state dictionary')
 
@@ -92,6 +100,8 @@ def get_params():
                         help='how the ddm is applied; `thresh`, `stats`, or `mult`')
     parser.add_argument('--ddm_patience', type=int, default=10,
                         help='patience for drift reduction')
+    parser.add_argument('--drift_budget', type=str, default=None,
+                        help='ddm for drift-based dynamic budget allocation; `adwin` or `hdddm`')
     parser.add_argument('--budget_path', type=str, default=None,
                         help='load a predefined budget from this directory')
     parser.add_argument('--adapt_distr', type=float, default=None,

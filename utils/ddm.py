@@ -13,8 +13,8 @@ from river import drift
 from pdb import set_trace
 
 class AdwinDriftDetector:
-    def __init__(self):
-        self.adwin = drift.ADWIN(clock=4)
+    def __init__(self, window=4):
+        self.adwin = drift.ADWIN(clock=window)
         self.counter = 0
         self.drift_idxs = []
 

@@ -14,9 +14,10 @@ from src.dataset import ImlDataModule
 from src.params import get_params
 from utils.query_strategies import StrategyManager
 from utils.corrective_feedback import FeedbackSimulator
-from utils.utils import reset_trainer, update_xent
+from utils.utils import reset_trainer, update_xent, update_counts
 from utils.utils import write_header, write_session
-from utils.ddm import NcDdm, NnDdm, AdwinDriftDetector
+from utils.ddm import AdwinDriftDetector
+from utils.hdddm import HDDDM
 
 from pdb import set_trace
 
@@ -32,15 +33,18 @@ def main():
     # Initialize feedback simulator object
     cf_sim = FeedbackSimulator(params)
     # Initialize DDM
-    if params.ddm is None:
-        ddm = None
-    else:
-        drift_list = []
-        if params.ddm=='nc':
-            ddm = NcDdm(n_clusters=params.n_queries, reduction=params.ddm_reduction, dist_fn=params.ddm_dist_fn)
+    if params.drift_budget is not None:
+        budget_dict = {'detect':int(params.n_queries*5),
+                        'warn':int(params.n_queries/2*5),
+                        'none':int(params.n_queries/2)}
+        if params.drift_budget == 'adwin':
+            warn_ddm = AdwinDriftDetector(25)
+            true_ddm = AdwinDriftDetector(50)
         else:
-            ddm = NnDdm(reduction=params.ddm_reduction, dist_fn=params.ddm_dist_fn)
-    adwin = AdwinDriftDetector()
+            warn_ddm = HDDDM()
+            true_ddm = HDDDM()
+    else:
+        adwin = AdwinDriftDetector()
     # Set up output directory
     out_dir = os.path.join('output', params.run_name)
     if os.path.exists(out_dir):
@@ -57,7 +61,7 @@ def main():
     al_methods.sort()
     if not params.debug:
         out_file = os.path.join(out_dir, 'scores.csv')
-        write_header(out_file, al_methods, (ddm is not None))
+        write_header(out_file, al_methods)
     
     # Set up trainer callbacks
     callbacks = []
@@ -108,8 +112,10 @@ def main():
     data_module.next_batch()
     module.n_train = len(data_module)
     # Update class weights if indicated
-    if params.auto_weight and params.class_loss=='xent':
-        update_xent(module, data_module)
+    if params.cb_loss:
+        update_counts(module, data_module)
+    elif params.auto_weight and params.class_loss=='xent':
+        update_xent(module, data_module, params.auto_mult)
     # Delete old checkpoints
     os.system(f'rm -rf {ckpt_dir}/best.ckpt') 
     # Train on bootstrap corpus
@@ -138,82 +144,54 @@ def main():
             pre_ps.append(int(test_results[0]['test/ps']))
             pre_ns.append(int(test_results[0]['test/ns']))
 
-        # Handle DDM, budgeting, query selection, etc. (TODO: Refactor and make cleaner)
+        # Handle DDM, budgeting, query selection, etc.
         if params.budget_path is not None:
             n_queries = int(np.genfromtxt(os.path.join(params.budget_path, params.env_name.split('_')[0], 'budget.txt'))[data_module.current_batch])
         else:
             n_queries = params.n_queries
 
-        if ddm is not None:
-            dist = ddm.get_dist(data_module.data_train, data_module.data_test)
-            if params.ddm_usage=='mult':
-                mult = params.drift_mult if dist>params.ddm_thresh else 1
-                idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, n_queries*mult)
-                data_module.transfer_samples(idxs_dict[mm])
-            elif params.ddm_usage=='thresh':
-                min_dist = dist
-                wait_time = 0
-                metrics_dict = {mm:0}
-                while dist>params.ddm_thresh and len(data_module.data_test)>680 and wait_time<params.ddm_patience:
-                    idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, n_queries)
-                    data_module.transfer_samples(idxs_dict[mm])
-                    dist = ddm.get_dist(data_module.data_train, data_module.data_test)
-                    wait_time += 1
-                    if dist < min_dist:
-                        min_dist = dist
-                        wait_time = 0
-            elif params.ddm_usage=='stats':
-                if len(drift_list)>0:
-                    drift_mean = torch.mean(torch.tensor(drift_list))
-                    mult = dist/drift_mean
-                    n_queries = int(n_queries*mult)
-                drift_list.append(dist)
-                idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, n_queries)
-                data_module.transfer_samples(idxs_dict[mm])
+        if params.separate_class_al:
+            dist = None
+            budget += n_queries
+            sm.est_class = 'target'
+            sm.min_samples = params.min_al_samples
+            idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, budget)
+            data_module.transfer_samples(idxs_dict[mm])
+            print(f'Target queries: {len(idxs_dict[mm])}')
+            budget -= len(idxs_dict[mm])
+            n_al = len(idxs_dict[mm])
+            sm.est_class = 'nontarget'
+            sm.min_samples = np.maximum(0, sm.min_samples-len(idxs_dict[mm]))
+            idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, budget)
+            has_drift = adwin.log_batch(data_module.test_dataloader(), module.model)
+            print(adwin.drift_idxs)
+            data_module.transfer_samples(idxs_dict[mm])
+            print(f'Nontarget queries: {len(idxs_dict[mm])}')
+            p_t, p_n = data_module.get_class_balance()
+            print(f'P_t: {p_t:.4f}')
+            budget -= len(idxs_dict[mm])
+            n_al += len(idxs_dict[mm])
+            print(f'Remaining budget: {budget}')
+        elif params.drift_budget is not None:
+            dist = None
+            warn_drift = warn_ddm.log_batch(data_module.test_dataloader(), module.model)
+            has_drift = true_ddm.log_batch(data_module.test_dataloader(), module.model)
+            if has_drift:
+                n_queries = budget_dict['detect']
+            elif warn_drift:
+                n_queries = budget_dict['warn']
             else:
-                exit()
+                n_queries = budget_dict['none']
+            idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, n_queries)
+            data_module.transfer_samples(idxs_dict[mm])
+            n_al = len(idxs_dict[mm])
         else:
-            if params.separate_class_al:
-                dist = None
-                budget += n_queries
-                sm.est_class = 'target'
-                sm.min_samples = params.min_al_samples
-                idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, budget)
-                data_module.transfer_samples(idxs_dict[mm])
-                print(f'Target queries: {len(idxs_dict[mm])}')
-                budget -= len(idxs_dict[mm])
-                n_al = len(idxs_dict[mm])
-                sm.est_class = 'nontarget'
-                sm.min_samples = np.maximum(0, sm.min_samples-len(idxs_dict[mm]))
-                idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, budget)
-                if params.ensemble:
-                    current_n_drifts = module.model.model.n_drifts_detected()
-                    has_drift = current_n_drifts > n_drifts
-                    n_drifts = current_n_drifts
-                else:
-                    # has_drift = adwin.log_batch(data_module.idx_loader(idxs_dict[mm]), module.model)
-                    has_drift = adwin.log_batch(data_module.test_dataloader(), module.model)
-                    print(adwin.drift_idxs)
-                data_module.transfer_samples(idxs_dict[mm])
-                print(f'Nontarget queries: {len(idxs_dict[mm])}')
-                p_t, p_n = data_module.get_class_balance()
-                print(f'P_t: {p_t:.4f}')
-                budget -= len(idxs_dict[mm])
-                n_al += len(idxs_dict[mm])
-                print(f'Remaining budget: {budget}')
-            else:
-                dist = None
-                idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, n_queries)
-                if False:
-                    current_n_drifts = module.model.model.n_warnings_detected()
-                    has_drift = current_n_drifts > n_drifts
-                    n_drifts = current_n_drifts
-                else:
-                    # has_drift = adwin.log_batch(data_module.idx_loader(idxs_dict[mm]), module.model)
-                    has_drift = adwin.log_batch(data_module.test_dataloader(), module.model)
-                    print(adwin.drift_idxs)
-                data_module.transfer_samples(idxs_dict[mm])
-                n_al = len(idxs_dict[mm])
+            dist = None
+            idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, n_queries)
+            has_drift = adwin.log_batch(data_module.test_dataloader(), module.model)
+            print(adwin.drift_idxs)
+            data_module.transfer_samples(idxs_dict[mm])
+            n_al = len(idxs_dict[mm])
 
         # Handle exception where a batch only contains 1 sample
         data_module.drop_last = True if len(data_module)%params.batch_size==1 else False
@@ -223,8 +201,10 @@ def main():
         if base_state_dict is not None:
             module.model.load_state_dict(base_state_dict)
         # Update class weighting if indicated
-        if params.auto_weight and params.class_loss=='xent':
-            update_xent(module, data_module)
+        if params.cb_loss:
+            update_counts(module, data_module)
+        elif params.auto_weight and params.class_loss=='xent':
+            update_xent(module, data_module, params.auto_mult)
         # Delete old checkpoints
         os.system(f'rm -rf {ckpt_dir}/best.ckpt')
         # Train model on adaptation pool

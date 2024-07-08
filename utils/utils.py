@@ -85,6 +85,27 @@ class ImlmLoss(torch.nn.Module):
         return imlm
 
 
+class aDcfLoss(torch.nn.Module):
+    def __init__(self, fnr_weight=0.75, temp=40):
+        super(aDcfLoss, self).__init__()
+        self.temp = temp
+        self.alpha = fnr_weight
+        self.sig = nn.Sigmoid()
+
+    def forward(self, x, y):
+        '''
+        x: Log of class posterior probabilities (on the interval [-inf,inf])
+        y: Labels (0 or 1)
+        '''
+        x = torch.exp(x)
+        targ_mask = y==1
+        non_mask = y==0
+        p_fn = torch.sum(self.sig(self.temp*(0.5-x[targ_mask,1])))/len(targ_mask) if len(targ_mask)>0 else 0
+        p_fp = torch.sum(self.sig(self.temp*(x[non_mask,1]-0.5)))/len(non_mask) if len(non_mask)>0 else 0
+        dcf = self.alpha*p_fn + (1-self.alpha)*p_fp
+        return dcf
+
+
 class FocalLoss(nn.Module):
     # From https://github.com/clcarwin/focal_loss_pytorch
     def __init__(self, gamma=0, reduction='mean'):
@@ -132,13 +153,25 @@ def reset_trainer(trainer):
     trainer.callbacks[3].current_score = None
     trainer.callbacks[3].best_model_path = ''
 
-def update_xent(module, data_module):
+def update_xent(module, data_module, mult=1):
     p_target, p_nontarget = data_module.get_class_balance()
-    target_weight = 1 / (p_target*2)
-    nontarget_weight = 1 / (p_nontarget*2)
+    n_target = int(p_target*len(data_module.data_train))
+    n_nontarget = int(p_nontarget*len(data_module.data_train))
+    n = len(data_module.data_train)
+    target_weight = mult*n / (n_target*2)
+    nontarget_weight = n / (n_nontarget*2)
     module.criterion = torch.nn.NLLLoss(weight=torch.tensor([nontarget_weight, target_weight]))
+    print(f'Auto target weight: {target_weight:.4f}')
+    print(f'Auto nontarget weight: {nontarget_weight:.4f}')
 
-def write_header(out_file, al_methods, ddm_exists):
+def update_counts(module, data_module):
+    n_target, n_nontarget = data_module.get_class_counts()
+    module.n_target = n_target
+    module.n_nontarget = n_nontarget
+    print(n_target)
+    print(n_nontarget)
+
+def write_header(out_file, al_methods, ddm_exists=False):
     f = open(out_file, 'w')
     f.write('pass,pre_dcf,pre_fnr,pre_fpr,dcf,fnr,fpr,pre_ns,pre_ps,ns,ps,pre_fns,pre_fps,fns,fps,p_target,p_nontarget,n_samples,cum_pre_dcf,cum_dcf,n_al,cf_tp,cf_fp,drift')
     if len(al_methods)==1 and al_methods[0]!='rand':
