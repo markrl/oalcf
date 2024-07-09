@@ -24,7 +24,7 @@ class VtdModule(LightningModule):
             
         reduction = 'none' if params.cb_loss else 'mean'
         if params.class_loss=='xent':
-            self.criterion = nn.NLLLoss(weight=torch.tensor([1, params.target_weight]))
+            self.criterion = nn.NLLLoss(weight=torch.tensor([1, params.target_weight]), reduction=reduction)
         elif params.class_loss=='dcf':
             self.criterion = DcfLoss(fnr_weight=0.75, smax_weight=params.dsmax_mult, learn_mult=params.learn_mult, learn_error_weight=params.learn_error_weight)
         elif params.class_loss=='imlm':
@@ -49,6 +49,10 @@ class VtdModule(LightningModule):
         self.test_labels = []
         self.val_labels = []
         self.n_train = 0
+        if params.cb_loss:
+            self.n_target = 0
+            self.n_nontarget = 0
+            self.beta = params.beta
 
     def forward(self, x):
         return self.model(x)
@@ -97,6 +101,8 @@ class VtdModule(LightningModule):
         x,y,_,_ = batch
         embeds,y_hat,logits = self(x)
         loss = self.criterion(y_hat,y)
+        if self.params.cb_loss:
+            loss = torch.mean(loss)
         self.log('val/loss', loss.item(), on_step=False, on_epoch=True)
         pred = torch.argmax(y_hat, dim=-1)
         acc = torch.mean(1.0*(pred==y))
@@ -151,6 +157,8 @@ class VtdModule(LightningModule):
         x,y,_,_ = batch
         y_hat = self(x)[1]
         loss = self.criterion(y_hat,y)
+        if self.params.cb_loss:
+            loss = torch.mean(loss)
         self.log('test/loss', loss.item(), on_step=False, on_epoch=True)
         pred = torch.argmax(y_hat, dim=-1)
         acc = torch.mean(1.0*(pred==y))

@@ -14,7 +14,8 @@ def main(dir_code, metric='dcf', pre_post_diff='post', corpus_task_paradigm='cor
     task_dict = {'vtd': ['rm1', 'rm2', 'rm3', 'rm4', 'apartment', 'hotel', 'office'],
                     'slv': ['yo', 'ha', 'bas', 'ckb', 'cv', 'kmr', 'tt', 'hy-AM', 'sr', 'ky']}
     paradigm_dict = {'oal': ['oal'], 'oal-cf': ['oalcf']}
-    run_dict = {}
+    # run_dict = {}
+    run_dict = {'random':'rand', 'alce':'alceal', 'necs':'necsal', 'smax':'smaxal', 'egl':'eglal'}
     ps, ns, fps, fns = [], [], [], []
     pre_ps, pre_ns, pre_fps, pre_fns = [], [], [], []
     pre_n_adapt, n_adapt = [], []
@@ -51,8 +52,12 @@ def main(dir_code, metric='dcf', pre_post_diff='post', corpus_task_paradigm='cor
         for kk in paradigm_dict:
             if paradigm_name in paradigm_dict[kk]:
                 paradigms.append(kk)
-        run_dict[run_name] = [run_name]
-        runs.append(run_name)
+        for kk in run_dict:
+            if run_name==run_dict[kk]:
+                runs.append(kk)
+        if len(runs) < len(paradigms):
+            run_dict[run_name] = [run_name]
+            runs.append(run_name)
 
     if pre_post_diff=='post':
         fprs = [np.nan_to_num(fp/n) for fp,n in zip(fps,pre_ns)]
