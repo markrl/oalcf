@@ -56,7 +56,7 @@ The commands above only runs one language. To run all tests for all languages, u
 bash scripts/run_lid_parallel.sh test_lid "--sim_type fpstps --max_fb_samples 16"
 ```
 
-## Scoring
+### Scoring
 The scoring scripts are all contained in the `scoring` directory. The two most commonly used scripts here will be `print_basic_results.py` and `combo_scores.py`. To see the scores of a single run, use this command:
 
 ```
@@ -67,4 +67,11 @@ To see the aggregated scores for multiple runs with the same parameter settings 
 
 ```
 python scoring/print_basic_results.py output/run_dir/*
+```
+
+### Budget Planning
+To use planned non-uniform AL budgets with the `--budget_path` flag, first create a budget using `utils/plan_budget.py`. Before this can be done, there must be a directory filled with existing runs for the environments to be budgeted. Then, the script can be run as follows:
+
+```
+python utils/plan_budget.py [budget_type] path/to/runs/directory [budget_name] [other_parameters]
 ```
