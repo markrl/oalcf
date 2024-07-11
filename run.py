@@ -146,7 +146,10 @@ def main():
 
         # Handle DDM, budgeting, query selection, etc.
         if params.budget_path is not None:
-            n_queries = int(np.genfromtxt(os.path.join(params.budget_path, params.env_name.split('_')[0], 'budget.txt'))[data_module.current_batch])
+            if 'VTD' in params.feat_root:
+                n_queries = int(np.genfromtxt(os.path.join(params.budget_path, params.env_name.split('_')[0], 'budget.txt'))[data_module.current_batch])
+            elif 'LID' in params.feat_root:
+                n_queries = int(np.genfromtxt(os.path.join(params.budget_path, params.lid_target, 'budget.txt'))[data_module.current_batch])
         else:
             n_queries = params.n_queries
 

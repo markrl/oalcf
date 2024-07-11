@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import pickle
 
-from src.dataset import VtdImlDataModule
+from src.dataset import ImlDataModule
 
 from pdb import set_trace
 
@@ -24,18 +24,39 @@ def uniform(out_dir):
         out_file = os.path.join(out_dir, subdir, 'budget.txt')
         np.savetxt(out_file, n_samples)
 
-def linear(out_dir, initial_value):
+def frontheavy(inp_dir, out_dir):
     if 'budgets/' not in out_dir:
         out_dir = os.path.join('budgets', out_dir)
     os.system(f'rm -rf {out_dir}')
     os.mkdir(out_dir)
-    avg_samples = 8
-    inp_dir = 'output/vtd_best'
     subdirs = os.listdir(inp_dir)
     for ii,subdir in enumerate(subdirs):
         sheet = pd.read_csv(os.path.join(inp_dir, subdir, 'scores.csv'))
+        avg_samples = np.mean(sheet['n_al'])
         n_sessions = len(sheet)
-        total_samples = avg_samples*n_sessions
+        total_samples = np.sum(sheet['n_al'])
+        n_samples = np.zeros(n_sessions)
+        ii = 0
+        while total_samples > 0:
+            n_samples[ii] = np.minimum(720, total_samples)
+            total_samples -= n_samples[ii]
+            ii += 1
+
+        os.mkdir(os.path.join(out_dir, subdir))
+        out_file = os.path.join(out_dir, subdir, 'budget.txt')
+        np.savetxt(out_file, n_samples)
+
+def linear(inp_dir, out_dir, initial_value):
+    if 'budgets/' not in out_dir:
+        out_dir = os.path.join('budgets', out_dir)
+    os.system(f'rm -rf {out_dir}')
+    os.mkdir(out_dir)
+    subdirs = os.listdir(inp_dir)
+    for ii,subdir in enumerate(subdirs):
+        sheet = pd.read_csv(os.path.join(inp_dir, subdir, 'scores.csv'))
+        avg_samples = np.mean(sheet['n_al'])
+        n_sessions = len(sheet)
+        total_samples = np.sum(sheet['n_al'])
         sessions = np.arange(1,n_sessions+1)
         slope = n_sessions*(initial_value-avg_samples)/np.sum(sessions)
         n_samples = -slope*sessions + initial_value
@@ -48,19 +69,19 @@ def linear(out_dir, initial_value):
         np.savetxt(out_file, n_samples)
         print(f'Min {n_samples[-1]:.0f}')
 
-def geometric_ratio(out_dir, lam_r):
+def geometric_ratio(inp_dir, out_dir, lam_r):
     if 'budgets/' not in out_dir:
         out_dir = os.path.join('budgets', out_dir)
     os.system(f'rm -rf {out_dir}')
     os.mkdir(out_dir)
-    avg_samples = 8
-    inp_dir = 'output/vtd_best'
+    # inp_dir = 'output/vtd_best'
     subdirs = os.listdir(inp_dir)
     first_se_samps = []
     for ii,subdir in enumerate(subdirs):
         sheet = pd.read_csv(os.path.join(inp_dir, subdir, 'scores.csv'))
+        avg_samples = np.mean(sheet['n_al'])
         n_sessions = len(sheet)
-        total_samples = n_sessions*avg_samples
+        total_samples = np.sum(sheet['n_al'])
         N = avg_samples*n_sessions
         r = 0.9
         a = 0.001
@@ -86,18 +107,18 @@ def geometric_ratio(out_dir, lam_r):
         first_se_samps.append(n_samples[0])
     print(np.mean(first_se_samps))
 
-def exponential_series(out_dir, initial_value=None):
+def exponential_series(inp_dir, out_dir, initial_value=None):
     if 'budgets/' not in out_dir:
         out_dir = os.path.join('budgets', out_dir)
     os.system(f'rm -rf {out_dir}')
     os.mkdir(out_dir)
-    avg_samples = 8
-    inp_dir = 'output/vtd_best'
+    # inp_dir = 'output/vtd_best'
     subdirs = os.listdir(inp_dir)
     for ii,subdir in enumerate(subdirs):
         sheet = pd.read_csv(os.path.join(inp_dir, subdir, 'scores.csv'))
+        avg_samples = np.mean(sheet['n_al'])
         n_sessions = len(sheet)
-        total_samples = avg_samples*n_sessions
+        total_samples = np.sum(sheet['n_al'])
         if initial_value is None:
             x = int(n_sessions/3)
         else:
@@ -119,18 +140,17 @@ def exponential_series(out_dir, initial_value=None):
         out_file = os.path.join(out_dir, subdir, 'budget.txt')
         np.savetxt(out_file, n_samples)
 
-def skewed_distribution(out_dir, a):
+def skewed_distribution(inp_dir, out_dir, a):
     if 'budgets/' not in out_dir:
         out_dir = os.path.join('budgets', out_dir)
     os.system(f'rm -rf {out_dir}')
     os.mkdir(out_dir)
-    avg_samples = 8
-    inp_dir = 'output/vtd_best'
     subdirs = os.listdir(inp_dir)
     for ii,subdir in enumerate(subdirs):
         sheet = pd.read_csv(os.path.join(inp_dir, subdir, 'scores.csv'))
+        avg_samples = np.mean(sheet['n_al'])
         n_sessions = len(sheet)
-        total_samples = avg_samples*n_sessions
+        total_samples = np.sum(sheet['n_al'])
         n = np.arange(n_sessions)
         x = 1/np.sum(n**2/a**3*np.exp(-n**2/(2*a**2)))
         n_samples = total_samples*x*(n**2/a**3*np.exp(-n**2/(2*a**2)))
@@ -144,7 +164,7 @@ def skewed_distribution(out_dir, a):
         out_file = os.path.join(out_dir, subdir, 'budget.txt')
         np.savetxt(out_file, n_samples)
 
-def specific_sessions(out_dir, se_list):
+def specific_sessions(inp_dir, out_dir, se_list):
     if '.' in se_list:
         se_list = se_list.split(',')
         se_list = [float(ss) for ss in se_list]
@@ -156,13 +176,12 @@ def specific_sessions(out_dir, se_list):
         out_dir = os.path.join('budgets', out_dir)
     os.system(f'rm -rf {out_dir}')
     os.mkdir(out_dir)
-    avg_samples = 8
-    inp_dir = 'output/vtd_best'
     subdirs = os.listdir(inp_dir)
     for ii,subdir in enumerate(subdirs):
         sheet = pd.read_csv(os.path.join(inp_dir, subdir, 'scores.csv'))
+        avg_samples = np.mean(sheet['n_al'])
         n_sessions = len(sheet)
-        total_samples = avg_samples*n_sessions
+        total_samples = np.sum(sheet['n_al'])
         per_session = int(total_samples/len(se_list))
         per_session = np.minimum(per_session, 711)
         n_samples = np.zeros(n_sessions)
@@ -179,7 +198,7 @@ def specific_sessions(out_dir, se_list):
         out_file = os.path.join(out_dir, subdir, 'budget.txt')
         np.savetxt(out_file, n_samples)        
 
-def oracle(out_dir):
+def oracle(inp_dir, out_dir):
     if 'budgets/' not in out_dir:
         out_dir = os.path.join('budgets', out_dir)
     os.system(f'rm -rf {out_dir}')
@@ -187,7 +206,6 @@ def oracle(out_dir):
     avg_samples = 8
     min_samples = 4
     params = pickle.load(open('/home/marklind/default_params.p', 'rb'))
-    inp_dir = 'output/vtd_best'
     subdirs = os.listdir(inp_dir)
     for ii,subdir in enumerate(subdirs):
         params.env_name = subdir
@@ -212,22 +230,24 @@ def oracle(out_dir):
         np.savetxt(out_file, n_samples)
 
 if __name__=='__main__':
-    if len(sys.argv) < 3:
+    if len(sys.argv) < 4:
         exit()
     elif sys.argv[1]=='uniform':
-        uniform(sys.argv[2])
+        uniform(sys.argv[2], sys.argv[3])
+    elif sys.argv[1]=='frontheavy':
+        frontheavy(sys.argv[2], sys.argv[3])
     elif sys.argv[1]=='linear':
-        linear(sys.argv[2], int(sys.argv[3]))
+        linear(sys.argv[2], sys.argv[3], int(sys.argv[4]))
     elif sys.argv[1]=='geometric':
-        geometric_ratio(sys.argv[2], float(sys.argv[3]))
+        geometric_ratio(sys.argv[2], sys.argv[3], float(sys.argv[4]))
     elif sys.argv[1]=='exponential':
-        if len(sys.argv)>3:
-            exponential_series(sys.argv[2], int(sys.argv[3]))
+        if len(sys.argv)>4:
+            exponential_series(sys.argv[2], sys.argv[3], int(sys.argv[4]))
         else:
-            exponential_series(sys.argv[2])
+            exponential_series(sys.argv[2], sys.argv[3])
     elif sys.argv[1]=='skew':
-        skewed_distribution(sys.argv[2], float(sys.argv[3]))
+        skewed_distribution(sys.argv[2], sys.argv[3], float(sys.argv[4]))
     elif sys.argv[1]=='oracle':
-        oracle(sys.argv[2])
+        oracle(sys.argv[2], sys.argv[3])
     elif sys.argv[1]=='sessions':
-        specific_sessions(sys.argv[2], sys.argv[3])
+        specific_sessions(sys.argv[2], sys.argv[3], sys.argv[4])
