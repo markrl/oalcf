@@ -189,9 +189,12 @@ def write_session(out_file, current_batch, test_results, error_counts, class_bal
     pre_fnr = pre_fns[-1]/pre_ps[-1] if pre_ps[-1]>0 else 0
     pre_fpr = pre_fps[-1]/pre_ns[-1] if pre_ns[-1]>0 else 0
     pre_dcf = 0.75*pre_fnr + 0.25*pre_fpr
-    dcf = test_results[0]['test/dcf']
-    fnr = test_results[0]['test/fnr']
-    fpr = test_results[0]['test/fpr']
+    if test_results is not None:
+        dcf = test_results[0]['test/dcf']
+        fnr = test_results[0]['test/fnr']
+        fpr = test_results[0]['test/fpr']
+    else:
+        dcf, fnr, fpr = 0, 0, 0
     f.write(f',{pre_dcf:.4f},{pre_fnr:.4f},{pre_fpr:.4f}')
     f.write(f',{dcf:.4f},{fnr:.4f},{fpr:.4f}')
     f.write(f',{pre_ns[-1]:d},{pre_ps[-1]:d}')

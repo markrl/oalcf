@@ -216,7 +216,10 @@ def main():
         if not params.debug and params.load_best:
             module = VtdModule.load_from_checkpoint(ckpt_dir+'/best.ckpt')
         # Get postquential evaluation metrics from this batch
-        test_results = trainer.test(module, data_module)
+        if len(data_module.data_test) > 0:
+            test_results = trainer.test(module, data_module)
+        else:
+            test_results = None
         # Get corrective feedback
         cf_idxs = cf_sim.simulate(data_module, module)
         n_cf = len(cf_idxs)
@@ -236,10 +239,16 @@ def main():
             cf_p, cf_n = 0, 0
         # Write results to file
         if not params.debug:
-            fps.append(int(test_results[0]['test/fps']))
-            fns.append(int(test_results[0]['test/fns']))
-            ps.append(int(test_results[0]['test/ps']))
-            ns.append(int(test_results[0]['test/ns']))
+            if test_results is None:
+                fps.append(0)
+                fns.append(0)
+                ps.append(0)
+                ns.append(0)
+            else:
+                fps.append(int(test_results[0]['test/fps']))
+                fns.append(int(test_results[0]['test/fns']))
+                ps.append(int(test_results[0]['test/ps']))
+                ns.append(int(test_results[0]['test/ns']))
             metric = None if len(al_methods)>1 or mm=='rand' else metrics_dict[mm]
             write_session(out_file, data_module.current_batch, test_results, (pre_fps,pre_fns,pre_ps,pre_ns,fps,fns,ps,ns), 
                             data_module.get_class_balance(), len(data_module.data_train), metric, dist, n_al, cf_p, cf_n, has_drift)
