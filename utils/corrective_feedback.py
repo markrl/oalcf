@@ -12,7 +12,7 @@ class FeedbackSimulator:
         self.max_fb_samples = params.max_fb_samples
 
     def simulate(self, data_module, module):
-        if self.sim_type is None:
+        if self.sim_type is None or len(data_module.data_test)==0:
             return []
         idxs = []
         if self.sim_type=='all':

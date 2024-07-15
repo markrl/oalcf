@@ -8,17 +8,17 @@ from src.dataset import ImlDataModule
 
 from pdb import set_trace
 
-def uniform(out_dir):
+def uniform(inp_dir, out_dir):
     if 'budgets/' not in out_dir:
         out_dir = os.path.join('budgets', out_dir)
     os.system(f'rm -rf {out_dir}')
     os.mkdir(out_dir)
-    avg_samples = 8
-    inp_dir = 'output/vtd_best'
     subdirs = os.listdir(inp_dir)
     for ii,subdir in enumerate(subdirs):
         sheet = pd.read_csv(os.path.join(inp_dir, subdir, 'scores.csv'))
+        avg_samples = np.mean(sheet['n_al'])
         n_sessions = len(sheet)
+        total_samples = np.sum(sheet['n_al'])
         n_samples = avg_samples*np.ones(n_sessions, dtype=int)
         os.mkdir(os.path.join(out_dir, subdir))
         out_file = os.path.join(out_dir, subdir, 'budget.txt')
@@ -120,7 +120,7 @@ def exponential_series(inp_dir, out_dir, initial_value=None):
         n_sessions = len(sheet)
         total_samples = np.sum(sheet['n_al'])
         if initial_value is None:
-            x = int(n_sessions/3)
+            x = int(3*n_sessions/8)
         else:
             x = initial_value
         z = 0.1
@@ -130,8 +130,8 @@ def exponential_series(inp_dir, out_dir, initial_value=None):
             z_grad *= (n_sessions*x*np.exp(-n_sessions*z)+(x+n_sessions*avg_samples)*np.exp(-z))
             z = z-lam*z_grad
         
-        n_samples = x*np.exp(-z*np.arange(1,n_sessions-1))
-        n_samples = np.round(n_samples).astype(int)
+        n_samples = x*np.exp(-z*np.arange(n_sessions))
+        n_samples = np.floor(n_samples).astype(int)
         diff = total_samples-np.sum(n_samples)
         n_samples[0] += diff
         print(n_samples)
