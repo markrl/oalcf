@@ -10,12 +10,18 @@ from pdb import set_trace
 def main(run1, run2, prefix=''):
     paths1 = []
     for dd in run1.split(','):
-        paths1 += glob.glob(os.path.join(dd, '*', 'scores.csv'))
+        if 'extra' in dd:
+            paths1 += glob.glob(os.path.join(dd, '*.csv'))
+        else:
+            paths1 += glob.glob(os.path.join(dd, '*', 'scores.csv'))
     paths1.sort()
 
     paths2 = []
     for dd in run2.split(','):
-        paths2 += glob.glob(os.path.join(dd, '*', 'scores.csv'))
+        if 'extra' in dd:
+            paths2 += glob.glob(os.path.join(dd, '*.csv'))
+        else:
+            paths2 += glob.glob(os.path.join(dd, '*', 'scores.csv'))
     paths2.sort()
 
     dcfs1, fnrs1, fprs1, imlms1 = [], [], [], []

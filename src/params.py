@@ -67,7 +67,7 @@ def get_params():
     parser.add_argument('--load_pretrained', type=str, default=None,
                         help='path to pretrained model state dictionary')
 
-    # IML/AL arguments
+    # OAL-CF arguments
     parser.add_argument('--al_methods', type=str, default='smax',
                         help='''list of active learning methods applied (separated by commas). 
                             `None` indicates no active learning.
@@ -120,6 +120,8 @@ def get_params():
                         help='choose the most informative feedback samples')
     parser.add_argument('--forget_n_batches', type=int, default=None,
                         help='forget adaptation data after n batches; `1`')
+    parser.add_argument('--reverse_order', default=False, action='store_true',
+                        help='run OAL backward')
 
     # Model arguments
     parser.add_argument('--no_initial_bn', default=False, action='store_true',

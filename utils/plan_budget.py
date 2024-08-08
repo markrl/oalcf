@@ -42,8 +42,8 @@ def frontheavy(inp_dir, out_dir):
             total_samples -= n_samples[ii]
             ii += 1
 
-        os.mkdir(os.path.join(out_dir, subdir))
-        out_file = os.path.join(out_dir, subdir, 'budget.txt')
+        os.mkdir(os.path.join(out_dir, subdir.split('_')[0]))
+        out_file = os.path.join(out_dir, subdir.split('_')[0], 'budget.txt')
         np.savetxt(out_file, n_samples)
 
 def linear(inp_dir, out_dir, initial_value):
@@ -64,8 +64,8 @@ def linear(inp_dir, out_dir, initial_value):
         diff = total_samples-np.sum(n_samples)
         n_samples[1] += diff
 
-        os.mkdir(os.path.join(out_dir, subdir))
-        out_file = os.path.join(out_dir, subdir, 'budget.txt')
+        os.mkdir(os.path.join(out_dir, subdir.split('_')[0]))
+        out_file = os.path.join(out_dir, subdir.split('_')[0], 'budget.txt')
         np.savetxt(out_file, n_samples)
         print(f'Min {n_samples[-1]:.0f}')
 
@@ -120,24 +120,30 @@ def exponential_series(inp_dir, out_dir, initial_value=None):
         n_sessions = len(sheet)
         total_samples = np.sum(sheet['n_al'])
         if initial_value is None:
-            x = int(3*n_sessions/8)
+            # x = int(total_samples/3)
+            x = int(0.03*total_samples)
+            p = 0.03
         else:
             x = initial_value
-        z = 0.1
-        lam = 0.0000001
-        for ii in range(100):
-            z_grad = -2*(x*np.exp(-n_sessions*z) + (x+n_sessions*avg_samples)*np.exp(-z)-n_sessions*avg_samples)
-            z_grad *= (n_sessions*x*np.exp(-n_sessions*z)+(x+n_sessions*avg_samples)*np.exp(-z))
-            z = z-lam*z_grad
+        # z = 0.1
+        # lam = 0.0000001
+        # for ii in range(100):
+        #     # z_grad = -2*(x*np.exp(-n_sessions*z) + (x+n_sessions*avg_samples)*np.exp(-z)-n_sessions*avg_samples)
+        #     # z_grad *= (n_sessions*x*np.exp(-n_sessions*z)+(x+n_sessions*avg_samples)*np.exp(-z))
+        #     z_grad = 2*(x*np.exp(-n_sessions*z) - total_samples*np.exp(-z))
+        #     z_grad *= x/n_sessions*np.exp(-n_sessions*z) - total_samples*np.exp(-z)
+        #     z = z-lam*z_grad
         
-        n_samples = x*np.exp(-z*np.arange(n_sessions))
-        n_samples = np.floor(n_samples).astype(int)
+        # n_samples = x*np.exp(-z*np.arange(n_sessions))
+        k = np.arange(n_sessions)
+        n_samples = (1-p)**k*p*total_samples
+        n_samples = np.round(n_samples).astype(int)
         diff = total_samples-np.sum(n_samples)
         n_samples[0] += diff
         print(n_samples)
 
-        os.mkdir(os.path.join(out_dir, subdir))
-        out_file = os.path.join(out_dir, subdir, 'budget.txt')
+        os.mkdir(os.path.join(out_dir, subdir.split('_')[0]))
+        out_file = os.path.join(out_dir, subdir.split('_')[0], 'budget.txt')
         np.savetxt(out_file, n_samples)
 
 def skewed_distribution(inp_dir, out_dir, a):

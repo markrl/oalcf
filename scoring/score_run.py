@@ -9,7 +9,7 @@ def main(score_paths):
     score_paths.sort()
     print('DCF\tFNR\tFPR\tIMLM\t#bootstrap\t#AL\t#FP\t#FN\t#Target\t#Nontarget\t#CF retained\t% target in adapt pool\ttot labels/tot samples')
     for score_path in score_paths:
-        if 'scores.csv' not in score_path:
+        if '.csv' not in score_path:
             score_file = os.path.join(score_path, 'scores.csv')
         else:
             score_file = score_path

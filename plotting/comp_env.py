@@ -27,6 +27,12 @@ def main(csv_paths, metric=None, label_names=None, outpath=None):
             fns = np.cumsum(sheet['fps'])
             ps = np.cumsum(sheet['ns'])
             scores = fps/ns
+        elif metric=='fns':
+            scores = np.array(sheet['fns'])
+        elif metric=='errors':
+            scores = np.array(sheet['fps'] + sheet['fns'])
+        elif metric=='n_al':
+            scores = np.array(sheet['n_al'])
         elif metric=='new_samples':
             scores = np.array(sheet['n_samples'])
             scores = np.diff(scores, prepend=8)
@@ -47,7 +53,7 @@ def main(csv_paths, metric=None, label_names=None, outpath=None):
     # Hotel
     # drift_sessions = [8, 33, 48, 52, 73, 101, 121, 126]
     # Office
-    # drift_sessions = [41, 62, 113, 127]
+    drift_sessions = [41, 62, 113, 127]
     # Rm1
     # drift_sessions = [3, 14, 47]
     # Rm2
@@ -56,15 +62,23 @@ def main(csv_paths, metric=None, label_names=None, outpath=None):
     # drift_sessions = [8, 15, 26, 71]
     # Rm4
     # drift_sessions = [5, 26, 35, 66, 74]
-    # for ii,ss in enumerate(drift_sessions):
-    #     if ii==0:
-    #         plt.plot([ss, ss], [min_val, max_val], 'k--', label='drift')
-    #     else:
-    #         plt.plot([ss, ss], [min_val, max_val], 'k--')
+    for ii,ss in enumerate(drift_sessions):
+        if ii==0:
+            plt.plot([ss, ss], [min_val, max_val], 'k--', label='Drift detected')
+        else:
+            plt.plot([ss, ss], [min_val, max_val], 'k--')
     plt.xlabel('Session')
     plt.ylabel(metric.upper())
+    if metric=='errors':
+        plt.ylabel('Total errors')
+    elif metric=='fns':
+        plt.ylabel('# false negatives')
     plt.legend()
-    plt.savefig(outpath)
+    plt.xlim([-1, len(scores)])
+    fig = plt.gcf()
+    fig.set_size_inches(8.5, 3)
+    plt.tight_layout()
+    plt.savefig(outpath, dpi=400)
     plt.clf()
 
 

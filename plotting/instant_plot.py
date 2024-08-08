@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from pdb import set_trace
 
 def main(dir_code, metric='dcf', pre_post_diff='post', corpus_task_paradigm='corpus'):
-    outpath = 'plotting/plot_out/trends.png'
+    outpath = 'plotting/plot_out/instant.png'
     corpus_dict = {'sri': ['rm1', 'rm2', 'rm3', 'rm4'], 'lb': ['apartment', 'hotel', 'office'],
                     'ac': ['yo', 'ha', 'bas'], 'cr': ['ckb', 'cv', 'kmr', 'tt', 'hy-AM', 'sr', 'ky']}
     task_dict = {'vtd': ['rm1', 'rm2', 'rm3', 'rm4', 'apartment', 'hotel', 'office'],
@@ -32,16 +32,16 @@ def main(dir_code, metric='dcf', pre_post_diff='post', corpus_task_paradigm='cor
         paradigm_name = ff.split('/')[-3].split('_')[1]
         run_name = ff.split('/')[-3].split('_')[2]
         n_bootstrap = sheet['n_samples'][0]-sheet['n_al'][0]
-        ps.append(np.cumsum(np.array(sheet['ps'])))
-        ns.append(np.cumsum(np.array(sheet['ns'])))
-        fps.append(np.cumsum(np.array(sheet['fps'])))
-        fns.append(np.cumsum(np.array(sheet['fns'])))
-        n_adapt.append(n_bootstrap+np.cumsum(np.array(sheet['n_al'])))
-        pre_ps.append(np.cumsum(np.array(sheet['pre_ps'])))
-        pre_ns.append(np.cumsum(np.array(sheet['pre_ns'])))
-        pre_fps.append(np.cumsum(np.array(sheet['pre_fps'])))
-        pre_fns.append(np.cumsum(np.array(sheet['pre_fns'])))
-        pre_n_adapt.append(n_bootstrap+np.cumsum(np.array(sheet['n_al']))-sheet['n_al'][0])
+        ps.append(np.array(sheet['ps']))
+        ns.append(np.array(sheet['ns']))
+        fps.append(np.array(sheet['fps']))
+        fns.append(np.array(sheet['fns']))
+        n_adapt.append(n_bootstrap+np.array(sheet['n_al']))
+        pre_ps.append(np.array(sheet['pre_ps']))
+        pre_ns.append(np.array(sheet['pre_ns']))
+        pre_fps.append(np.array(sheet['pre_fps']))
+        pre_fns.append(np.array(sheet['pre_fns']))
+        pre_n_adapt.append(n_bootstrap+np.array(sheet['n_al'])-sheet['n_al'][0])
         al_metric.append(np.array(sheet['metric']))
         n_al.append(np.array(sheet['n_al']))
         p_target.append(np.array(sheet['p_target']))

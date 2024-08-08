@@ -195,6 +195,10 @@ class BaseVtdData(Dataset):
             self.label_files.remove(lf)
             self.feat_files.remove(ff)
 
+        if params.reverse_order:
+            self.label_files.reverse()
+            self.feat_files.reverse()
+
     def __len__(self):
         return len(self.label_files)*self.params.samples_per_batch
 
@@ -282,6 +286,10 @@ class BaseLidData(Dataset):
                 else:
                     self.labels.append(0)
                 self.feat_files.append(os.path.join(prefix, '{}', self.env, line+'.npy'))
+
+        if params.reverse_order:
+            self.feat_files.reverse()
+            self.labels.reverse()
 
     def __len__(self):
         return len(self.labels)
