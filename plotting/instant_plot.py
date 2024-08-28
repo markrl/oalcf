@@ -100,6 +100,12 @@ def main(dir_code, metric='dcf', pre_post_diff='post', corpus_task_paradigm='cor
     elif metric=='p_target':
         scores = p_target
 
+    for ss,ff in zip(scores,file_list):
+        dim1 = ss[:-1]
+        dim2 = ss[1:]
+        cc = np.corrcoef(dim1,dim2)[0,1]
+        print(f'{ff}:{cc:.4f}')
+
     if corpus_task_paradigm=='corpus':
         decider = corpora
         decider_dict = corpus_dict
@@ -117,9 +123,20 @@ def main(dir_code, metric='dcf', pre_post_diff='post', corpus_task_paradigm='cor
     for kk in decider_dict:
         corpus_scores = [ss for cc,ss in zip(decider,scores) if cc==kk]
         if len(corpus_scores) > 0:
+            all_ccs = []
+            for ss in corpus_scores:
+                dim1 = ss[:-1]
+                dim2 = ss[1:]
+                cc = np.corrcoef(dim1,dim2)[1,0]
+                all_ccs.append(cc)
+            print(f'{kk},mean:{np.mean(all_ccs):.4f}')
             min_len = np.min([len(ss) for ss in corpus_scores])
             corpus_scores = [ss[:min_len] for ss in corpus_scores]
             corpus_scores = np.mean(corpus_scores, axis=0)
+            dim1 = corpus_scores[:-1]
+            dim2 = corpus_scores[1:]
+            cc = np.corrcoef(dim1,dim2)[1,0]
+            print(f'mean,{kk}:{cc:.4f}')
             if metric=='plateau':
                 corpus_scores = corpus_scores-corpus_scores.min()
                 corpus_scores = corpus_scores/corpus_scores.max()
