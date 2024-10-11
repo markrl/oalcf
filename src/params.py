@@ -32,7 +32,7 @@ def get_params():
                         help='patience for callbacks')
     parser.add_argument('--patience_start', type=int, default=None,
                         help='starting patience value; `None` starts at the end value')
-    parser.add_argument('--min_delta', type=int, default=0,
+    parser.add_argument('--min_delta', type=float, default=0.0,
                         help='tolerance for callbacks')
     parser.add_argument('--seed', type=int, default=18792,
                         help='random seed')
