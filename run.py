@@ -108,7 +108,7 @@ def main():
     callbacks.append(EarlyStopping(
         monitor=params.monitor,
         mode=params.mode,
-        patience=params.patience,
+        patience=params.patience if params.patience_start is None else params.patience_start,
         min_delta=params.min_delta
     ))
     
@@ -173,6 +173,13 @@ def main():
             pre_fns.append(int(test_results[0]['test/fns']))
             pre_ps.append(int(test_results[0]['test/ps']))
             pre_ns.append(int(test_results[0]['test/ns']))
+
+        # Adjust patience
+        if params.patience_start is not None:  
+            scale = (len(data_module.data_train)-params.bootstrap)/(params.buffer_cap-params.bootstrap)
+            patience = int(scale*(params.patience-params.patience_start) + params.patience_start)
+            trainer.callbacks[0].patience = patience
+            print(f'Early stopping patience: {patience}')
 
         # Handle DDM, budgeting, query selection, etc.
         if params.budget_path is not None:

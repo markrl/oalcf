@@ -30,6 +30,8 @@ def get_params():
                         help='min or max')
     parser.add_argument('--patience', type=int, default=5,
                         help='patience for callbacks')
+    parser.add_argument('--patience_start', type=int, default=None,
+                        help='starting patience value; `None` starts at the end value')
     parser.add_argument('--min_delta', type=int, default=0,
                         help='tolerance for callbacks')
     parser.add_argument('--seed', type=int, default=18792,
