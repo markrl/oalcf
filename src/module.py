@@ -36,12 +36,14 @@ class VtdModule(LightningModule):
         self.contrast_criterion = ContrastiveLoss()
         self.params = params
         self.save_hyperparameters()
+        self.val_fns = 0
+        self.val_fps = 0
+        self.val_ns = 0
+        self.val_ps = 0
         self.test_fns = 0
         self.test_fps = 0
         self.test_ns = 0
         self.test_ps = 0
-        self.test_scores = []
-        self.test_labels = []
         self.n_train = 0
         if params.cb_loss:
             self.n_target = 0
@@ -57,6 +59,7 @@ class VtdModule(LightningModule):
             y_hat = self((x,y))
             pred = torch.argmax(y_hat, dim=1)
             acc = torch.mean(1.0*(pred==y))
+            self.log('train/acc', acc, on_step=False, on_epoch=True)
             return
         x1,y1,x2,y2 = batch
         embed1, y_hat, _ = self(x1)
@@ -71,7 +74,16 @@ class VtdModule(LightningModule):
             loss[y1==1] = loss[y1==1]*(1-self.beta)/(1-self.beta**self.n_target)
             loss = torch.mean(loss)
         self.log('train/loss', loss.item(), on_step=False, on_epoch=True)
+        pred = torch.argmax(y_hat, dim=-1)
+        acc = torch.mean(1.0*(pred==y1))
+        self.log('train/acc', acc, on_step=False, on_epoch=True)
         return loss
+
+    # def validation_step(self, batch, batch_idx):
+    #     return
+
+    # def on_validation_epoch_end(self):
+    #     return
 
     def test_step(self, batch, batch_idx):
         if self.params.ensemble:
@@ -85,6 +97,8 @@ class VtdModule(LightningModule):
             self.test_fns += torch.sum(torch.logical_and(y==1, pred==0))
             self.test_ps += torch.sum(y==1)
             self.test_ns += torch.sum(y==0)
+            self.test_scores.append(y_hat[:,1])
+            self.test_labels.append(y)
             return
         x,y,_,_ = batch
         y_hat = self(x)[1]

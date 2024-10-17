@@ -13,7 +13,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers.wandb import WandbLogger
 
 from src.module import VtdModule
-from src.dataset import ImlDataModule
+from src.dataset import ImlDataModule, DataLoaderCallback
 from src.params import get_params
 from utils.query_strategies import StrategyManager
 from utils.corrective_feedback import FeedbackSimulator
@@ -111,6 +111,7 @@ def main():
         patience=params.patience if params.patience_start is None else params.patience_start,
         min_delta=params.min_delta
     ))
+    # callbacks.append(DataLoaderCallback())
     
     # Initialize lightning data module and lightning module
     data_module = ImlDataModule(params)
@@ -128,7 +129,7 @@ def main():
         check_val_every_n_epoch=params.val_every_n_epochs,
         logger=None,
         log_every_n_steps=1,
-        num_sanity_val_steps=1 if params.debug else 0
+        num_sanity_val_steps=1 if params.debug else 0,
     )
 
     # Prepare base model if resetting weights every batch

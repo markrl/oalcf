@@ -3,6 +3,7 @@ import glob
 import torch
 from torch.utils.data import Dataset, DataLoader
 from pytorch_lightning import LightningDataModule
+from pytorch_lightning.callbacks import Callback
 import numpy as np
 from statistics import mean
 from copy import deepcopy
@@ -20,8 +21,8 @@ class ImlDataModule(LightningDataModule):
         elif 'LID' in params.feat_root:
             self.ds = BaseLidData(params)
             self.task = 'lid'
-        self.data_train = ImlData(params, self.ds)
-        self.data_test = ImlData(params, self.ds)
+        self.data_train = ImlData(params, True, self.ds)
+        self.data_test = ImlData(params, False, self.ds)
         self.current_batch = -1
         self.n_batches = int(len(self.ds)/params.samples_per_batch)
         self.drop_last = False
@@ -41,8 +42,9 @@ class ImlDataModule(LightningDataModule):
         )
 
     def val_dataloader(self):
+        data_val = ImlData(self.params, False, train_ds=self.data_train)
         return DataLoader(
-            dataset=self.data_train,
+            dataset=data_val,
             batch_size=self.params.batch_size,
             num_workers=self.params.nworkers,
             shuffle=False,
@@ -374,13 +376,20 @@ class BaseLidData(Dataset):
 
 
 class ImlData(Dataset):
-    def __init__(self, params, base_ds):
+    def __init__(self, params, training, base_ds=None, train_ds=None):
         super().__init__()
         self.params = params
-        self.base_ds = base_ds
-
-        self.active_idxs = []
-        self.inactive_idxs = [nn for nn in range(len(self.base_ds))]
+        if train_ds is not None:
+            self.base_ds = train_ds.base_ds
+            self.active_idxs = train_ds.active_idxs
+            self.inactive_idxs = train_ds.inactive_idxs
+        else:
+            self.base_ds = base_ds
+            self.active_idxs = []
+            self.inactive_idxs = [nn for nn in range(len(self.base_ds))]
+        self.training = training
+        if training:
+            self.offset = 1
 
     def __len__(self):
         return len(self.active_idxs)
@@ -440,13 +449,24 @@ class ImlData(Dataset):
     def __getitem__(self, index):
         index = self.active_idxs[index]
         feat1, label1 = self.base_ds[index]
-        idx2 = self.active_idxs[np.random.randint(low=0, high=len(self))]
-        feat2, label2 = self.base_ds[idx2]
-        return feat1, label1, feat2, label2
+        if self.training:
+            idx2 = self.active_idxs[np.random.randint(low=0, high=len(self))]
+            # idx2 = self.choose_pair_idx(index)
+            feat2, label2 = self.base_ds[idx2]
+            return feat1, label1, feat2, label2
+        else:
+            return feat1, label1, 0, 0
     
     def get_label(self, index):
         index = self.active_idxs[index]
         return self.base_ds.get_label(index)
+    
+    def choose_pair_idx(self, index):
+        pair_index = (index + self.offset) % len(self)
+        return pair_index
+    
+    def inc_offset(self):
+        self.offset = 1 if self.offset==len(self)-1 else self.offset+1
 
     def cat_data(self):
         feats = []
@@ -457,6 +477,12 @@ class ImlData(Dataset):
     def reset_idxs(self):
         self.active_idxs = []
         self.inactive_idxs = [nn for nn in range(len(self.base_ds))]
+
+
+class DataLoaderCallback(Callback):
+    def on_train_epoch_end(self, trainer, pl_module):
+        trainer.datamodule.data_train.inc_offset()
+
 
 if __name__=='__main__':
     from params import get_params
