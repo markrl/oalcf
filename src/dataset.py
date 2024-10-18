@@ -447,13 +447,13 @@ class ImlData(Dataset):
         self.inactive_idx = []
 
     def __getitem__(self, index):
-        index = self.active_idxs[index]
-        feat1, label1 = self.base_ds[index]
+        idx1 = self.active_idxs[index]
+        feat1, label1 = self.base_ds[idx1]
         if self.training:
             if self.params.pair_type=='rand':
                 idx2 = self.active_idxs[np.random.randint(low=0, high=len(self))]
             elif self.params.pair_type=='offset':
-                idx2 = self.choose_pair_idx(index)
+                idx2 = self.active_idxs[self.choose_pair_idx(index)]
             feat2, label2 = self.base_ds[idx2]
             return feat1, label1, feat2, label2
         else:
