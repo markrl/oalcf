@@ -128,6 +128,8 @@ def get_params():
                         help='maximum memory buffer size')
     parser.add_argument('--reverse_order', default=False, action='store_true',
                         help='run OAL backward')
+    parser.add_argument('--pair_type', type=str, default='rand',
+                        help='contrastive learning pairing method')
 
     # Model arguments
     parser.add_argument('--no_initial_bn', default=False, action='store_true',

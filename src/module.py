@@ -79,11 +79,11 @@ class VtdModule(LightningModule):
         self.log('train/acc', acc, on_step=False, on_epoch=True)
         return loss
 
-    def validation_step(self, batch, batch_idx):
-        return
+    # def validation_step(self, batch, batch_idx):
+    #     return
 
-    def on_validation_epoch_end(self):
-        return
+    # def on_validation_epoch_end(self):
+    #     return
 
     def test_step(self, batch, batch_idx):
         if self.params.ensemble:

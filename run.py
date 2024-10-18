@@ -111,7 +111,8 @@ def main():
         patience=params.patience if params.patience_start is None else params.patience_start,
         min_delta=params.min_delta
     ))
-    # callbacks.append(DataLoaderCallback())
+    if params.pair_type=='offset':
+        callbacks.append(DataLoaderCallback())
     
     # Initialize lightning data module and lightning module
     data_module = ImlDataModule(params)

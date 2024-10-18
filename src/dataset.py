@@ -389,7 +389,7 @@ class ImlData(Dataset):
             self.inactive_idxs = [nn for nn in range(len(self.base_ds))]
         self.training = training
         if training:
-            self.offset = 1
+            self.offset = 0
 
     def __len__(self):
         return len(self.active_idxs)
@@ -450,8 +450,10 @@ class ImlData(Dataset):
         index = self.active_idxs[index]
         feat1, label1 = self.base_ds[index]
         if self.training:
-            idx2 = self.active_idxs[np.random.randint(low=0, high=len(self))]
-            # idx2 = self.choose_pair_idx(index)
+            if self.params.pair_type=='rand':
+                idx2 = self.active_idxs[np.random.randint(low=0, high=len(self))]
+            elif self.params.pair_type=='offset':
+                idx2 = self.choose_pair_idx(index)
             feat2, label2 = self.base_ds[idx2]
             return feat1, label1, feat2, label2
         else:
@@ -466,7 +468,7 @@ class ImlData(Dataset):
         return pair_index
     
     def inc_offset(self):
-        self.offset = 1 if self.offset==len(self)-1 else self.offset+1
+        self.offset = 0 if self.offset==len(self)-1 else self.offset+1
 
     def cat_data(self):
         feats = []
