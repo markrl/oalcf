@@ -173,7 +173,7 @@ def update_counts(module, data_module):
 
 def write_header(out_file, al_methods, ddm_exists=False):
     f = open(out_file, 'w')
-    f.write('pass,time,pre_dcf,pre_fnr,pre_fpr,dcf,fnr,fpr,pre_ns,pre_ps,ns,ps,pre_fns,pre_fps,fns,fps,p_target,p_nontarget,n_samples,cum_pre_dcf,cum_dcf,n_al,cf_tp,cf_fp,drift')
+    f.write('pass,time,train_time,train_epochs,inference_time,pre_dcf,pre_fnr,pre_fpr,dcf,fnr,fpr,pre_ns,pre_ps,ns,ps,pre_fns,pre_fps,fns,fps,p_target,p_nontarget,n_samples,cum_pre_dcf,cum_dcf,n_al,cf_tp,cf_fp,drift')
     if len(al_methods)==1 and al_methods[0]!='rand':
         f.write(',metric')
     if ddm_exists:
@@ -182,11 +182,12 @@ def write_header(out_file, al_methods, ddm_exists=False):
     f.close()
 
 def write_session(out_file, current_batch, test_results, error_counts, class_balance, n_samples, metric, 
-                  drift_dist, n_al, cf_p, cf_n, has_drift, elapsed_time):
+                  drift_dist, n_al, cf_p, cf_n, has_drift, times, epochs):
+    elapsed_time, training_time, inference_time = times
     pre_fps, pre_fns, pre_ps, pre_ns, fps, fns, ps, ns = error_counts
     p_target, p_nontarget = class_balance
     f = open(out_file, 'a')
-    f.write(f'{current_batch},{elapsed_time:.2f}')
+    f.write(f'{current_batch},{elapsed_time:.2f},{training_time:.2f},{epochs:d},{inference_time:.2f}')
     pre_fnr = pre_fns[-1]/pre_ps[-1] if pre_ps[-1]>0 else 0
     pre_fpr = pre_fps[-1]/pre_ns[-1] if pre_ns[-1]>0 else 0
     pre_dcf = 0.75*pre_fnr + 0.25*pre_fpr

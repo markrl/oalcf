@@ -164,11 +164,15 @@ def main():
     mm = 'combo' if params.combo is not None else al_methods[0]
     # Loop through all batches
     while data_module.current_batch < data_module.n_batches:
-        batch_start_time = time.time()
+        # Start clocks
+        batch_start_time = time.monotonic()
+        total_inference_time, total_training_time, total_training_epochs = 0, 0, 0
         # Print current session name and number
         print(f'STARTING {data_module.get_current_session_name()} ({data_module.current_batch+1}/{data_module.n_batches})')
         # Get prequential evaluation metrics from this batch
+        inference_start_time = time.monotonic()
         test_results = trainer.test(module, data_module)
+        total_inference_time += time.monotonic()-inference_start_time
         # Save results
         if not params.debug:
             pre_fps.append(int(test_results[0]['test/fps']))
@@ -251,15 +255,22 @@ def main():
         if params.load_best:
             os.system(f'rm -rf {ckpt_dir}/best*.ckpt')
         # Train model on adaptation pool
+        fit_start_time = time.monotonic()
         trainer.fit(module, data_module)
+        total_training_time += time.monotonic()-fit_start_time
+        total_training_epochs += trainer.fit_loop.epoch_progress.total.completed
         # Load model with from best epoch for this batch if indicated
         if not params.debug and params.load_best:
             module = VtdModule.load_from_checkpoint(ckpt_dir+'/best.ckpt')
         # Get postquential evaluation metrics from this batch
         if len(data_module.data_test) > 0:
+            inference_start_time = time.monotonic()
             test_results = trainer.test(module, data_module)
+            total_inference_time += time.monotonic()-inference_start_time
         else:
             test_results = None
+        if total_inference_time < 0:
+            set_trace()
         # Get corrective feedback
         cf_idxs = cf_sim.simulate(data_module, module)
         n_cf = len(cf_idxs)
@@ -274,7 +285,10 @@ def main():
                 # Reset trainer for the new batch
                 reset_trainer(trainer)
                 # Train model on adaptation pool
+                fit_start_time = time.monotonic()
                 trainer.fit(module, data_module)
+                total_training_time += time.monotonic()-fit_start_time
+                total_training_epochs += trainer.fit_loop.epoch_progress.total.completed
         else:
             cf_p, cf_n = 0, 0
         # Write results to file
@@ -292,7 +306,7 @@ def main():
             metric = None if len(al_methods)>1 or mm=='rand' else metrics_dict[mm]
             write_session(out_file, data_module.current_batch, test_results, (pre_fps,pre_fns,pre_ps,pre_ns,fps,fns,ps,ns), 
                             data_module.get_class_balance(), len(data_module.data_train), metric, dist, n_al, cf_p, cf_n, 
-                            has_drift, time.time()-batch_start_time)
+                            has_drift, (time.monotonic()-batch_start_time, total_training_time, total_inference_time), total_training_epochs)
         # Prepare transition to next batch
         module.n_train = len(data_module)
         data_module.next_batch()
@@ -308,9 +322,9 @@ def main():
 
 if __name__=='__main__':
     import time
-    start_time = time.time()
+    start_time = time.monotonic()
     time_out = main()
-    time_elapsed = time.time()-start_time
+    time_elapsed = time.monotonic()-start_time
     print(time_elapsed)
     with open(time_out, 'w') as f:
         f.write(f'{time_elapsed:.2f}')
