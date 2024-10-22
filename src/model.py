@@ -100,3 +100,12 @@ class CompClassModel(CompModel):
         embeds = self.mlp(x)
         logits = self.classifier(embeds)
         return embeds, self.activate_out(logits), logits
+    
+    def get_embed(self, x):
+        if not self.params.no_initial_bn:
+            x = self.bn_layer(x)
+        if self.rnn is not None:
+            x = self.rnn(x)[0]
+            x = torch.mean(x, dim=1)
+        embeds = self.mlp(x)
+        return embeds

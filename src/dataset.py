@@ -389,7 +389,11 @@ class ImlData(Dataset):
             self.inactive_idxs = [nn for nn in range(len(self.base_ds))]
         self.training = training
         if training:
-            self.offset = 1
+            if params.pair_type=='offset':
+                self.offset = 1
+            elif params.pair_type=='neighbors':
+                self.close_neighbors = True
+                self.extremes = {}
 
     def __len__(self):
         return len(self.active_idxs)
@@ -454,6 +458,8 @@ class ImlData(Dataset):
                 idx2 = self.active_idxs[np.random.randint(low=0, high=len(self))]
             elif self.params.pair_type=='offset':
                 idx2 = self.active_idxs[self.choose_pair_idx(index)]
+            elif self.params.pair_type=='neighbors':
+                idx2 = self.active_idxs[self.extremes[index][self.close_neighbors]]
             feat2, label2 = self.base_ds[idx2]
             return feat1, label1, feat2, label2
         else:
@@ -470,6 +476,18 @@ class ImlData(Dataset):
     def inc_offset(self):
         self.offset = 1 if self.offset==len(self)-1 else self.offset+1
 
+    def compute_extremes(self, dists):
+        self.extremes = {}
+        labels = np.array([self.get_label(ii) for ii in range(len(self))])
+        for ii in range(len(self)):
+            sorted_idxs = np.argsort(dists[ii])
+            same_labels = labels==labels[ii]
+            self.extremes[ii] = {}
+            # Close but different class
+            self.extremes[ii][True] = sorted_idxs[np.where(1-same_labels[sorted_idxs])[0][0]]
+            # Far but same class
+            self.extremes[ii][False] = np.flipud(sorted_idxs)[np.where(same_labels[np.flipud(sorted_idxs)])[0][0]]
+
     def cat_data(self):
         feats = []
         for idx in self.active_idxs:
@@ -481,10 +499,50 @@ class ImlData(Dataset):
         self.inactive_idxs = [nn for nn in range(len(self.base_ds))]
 
 
-class DataLoaderCallback(Callback):
+class IncOffsetCallback(Callback):
     def on_train_epoch_end(self, trainer, pl_module):
         trainer.datamodule.data_train.inc_offset()
 
+
+class ToggleNeighborsCallback(Callback):
+    def on_train_epoch_start(self, trainer, pl_module):
+        self.use_gpu = trainer.model.params.gpus > 0 and torch.cuda.is_available()
+        self.ensemble = trainer.model.params.ensemble
+        if trainer.datamodule.data_train.close_neighbors:
+            # Get embeddings
+            embeds = self.extract_embeds(trainer.datamodule, trainer.model)
+            # Get distances
+            dists = self.get_dists(embeds)
+            # Compute extremes
+            trainer.datamodule.data_train.compute_extremes(dists.numpy())
+        trainer.datamodule.data_train.close_neighbors = not trainer.datamodule.data_train.close_neighbors
+
+    def on_fit_start(self, trainer, pl_module):
+        trainer.datamodule.data_train.close_neighbors = True
+
+    def get_dists(self, samples):
+        all_dists = []
+        for sample in samples:
+            diff = samples-sample
+            dists = torch.norm(diff, dim=1)
+            all_dists.append(dists)
+        return torch.stack(all_dists, dim=0)
+    
+    def extract_embeds(self, data_module, module):
+        model = module.model
+        model.eval()
+        loader = data_module.val_dataloader()
+        with torch.no_grad():
+            if self.ensemble:
+                embeds = [model(batch[0]) for batch in loader]
+            else:
+                if self.use_gpu:
+                    model = model.cuda()
+                    embeds = [model.get_embed(batch[0].cuda()) for batch in loader]
+                else:
+                    embeds = [model.get_embed(batch[0]) for batch in loader]
+        embeds = torch.cat(embeds, dim=0).cpu()
+        return embeds
 
 if __name__=='__main__':
     from params import get_params

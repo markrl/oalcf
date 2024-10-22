@@ -6,14 +6,12 @@ import glob
 from copy import deepcopy
 import pickle
 
-from torch.profiler import profile, record_function, ProfilerActivity
-
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
-from pytorch_lightning.loggers.wandb import WandbLogger
 
 from src.module import VtdModule
-from src.dataset import ImlDataModule, DataLoaderCallback
+from src.dataset import ImlDataModule
+from src.dataset import IncOffsetCallback, ToggleNeighborsCallback
 from src.params import get_params
 from utils.query_strategies import StrategyManager
 from utils.corrective_feedback import FeedbackSimulator
@@ -112,7 +110,9 @@ def main():
         min_delta=params.min_delta
     ))
     if params.pair_type=='offset':
-        callbacks.append(DataLoaderCallback())
+        callbacks.append(IncOffsetCallback())
+    elif params.pair_type=='neighbors':
+        callbacks.append(ToggleNeighborsCallback())
     
     # Initialize lightning data module and lightning module
     data_module = ImlDataModule(params)
@@ -269,8 +269,6 @@ def main():
             total_inference_time += time.monotonic()-inference_start_time
         else:
             test_results = None
-        if total_inference_time < 0:
-            set_trace()
         # Get corrective feedback
         cf_idxs = cf_sim.simulate(data_module, module)
         n_cf = len(cf_idxs)
