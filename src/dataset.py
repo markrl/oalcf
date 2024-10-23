@@ -480,13 +480,22 @@ class ImlData(Dataset):
         self.extremes = {}
         labels = np.array([self.get_label(ii) for ii in range(len(self))])
         for ii in range(len(self)):
+            self.extremes[ii] = {}
             sorted_idxs = np.argsort(dists[ii])
             same_labels = labels==labels[ii]
-            self.extremes[ii] = {}
-            # Close but different class
-            self.extremes[ii][True] = sorted_idxs[np.where(1-same_labels[sorted_idxs])[0][0]]
-            # Far but same class
-            self.extremes[ii][False] = np.flipud(sorted_idxs)[np.where(same_labels[np.flipud(sorted_idxs)])[0][0]]
+            if np.sum(same_labels)==0:
+                # Both are close but different class
+                self.extremes[ii][True] = sorted_idxs[np.where(1-same_labels[sorted_idxs])[0][0]]
+                self.extremes[ii][False] = sorted_idxs[np.where(1-same_labels[sorted_idxs])[0][0]]
+            elif np.sum(1-same_labels)==0:
+                # Both are far but same class
+                self.extremes[ii][True] = np.flipud(sorted_idxs)[np.where(same_labels[np.flipud(sorted_idxs)])[0][0]]
+                self.extremes[ii][False] = np.flipud(sorted_idxs)[np.where(same_labels[np.flipud(sorted_idxs)])[0][0]]
+            else:
+                # Close but different class
+                self.extremes[ii][True] = sorted_idxs[np.where(1-same_labels[sorted_idxs])[0][0]]
+                # Far but same class
+                self.extremes[ii][False] = np.flipud(sorted_idxs)[np.where(same_labels[np.flipud(sorted_idxs)])[0][0]]
 
     def cat_data(self):
         feats = []
