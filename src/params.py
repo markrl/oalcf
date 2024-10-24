@@ -130,6 +130,8 @@ def get_params():
                         help='run OAL backward')
     parser.add_argument('--pair_type', type=str, default='rand',
                         help='contrastive learning pairing method')
+    parser.add_argument('--shuffle_train', default=False, action='store_true',
+                        help='shuffle training data every epoch')
 
     # Model arguments
     parser.add_argument('--no_initial_bn', default=False, action='store_true',

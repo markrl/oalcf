@@ -37,7 +37,7 @@ class ImlDataModule(LightningDataModule):
             dataset=self.data_train,
             batch_size=self.params.batch_size,
             num_workers=self.params.nworkers,
-            shuffle=False,
+            shuffle=self.params.shuffle_train,
             drop_last=self.drop_last,
         )
 
