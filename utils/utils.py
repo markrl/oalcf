@@ -158,8 +158,8 @@ def update_xent(module, data_module, mult=1):
     n_target = int(p_target*len(data_module.data_train))
     n_nontarget = int(p_nontarget*len(data_module.data_train))
     n = len(data_module.data_train)
-    target_weight = mult*n / (n_target*2)
-    nontarget_weight = n / (n_nontarget*2)
+    target_weight = mult*n / (n_target*2) if n_target>0 else 0
+    nontarget_weight = n / (n_nontarget*2) if n_nontarget>0 else 0
     module.criterion = torch.nn.NLLLoss(weight=torch.tensor([nontarget_weight, target_weight]))
     print(f'Auto target weight: {target_weight:.4f}')
     print(f'Auto nontarget weight: {nontarget_weight:.4f}')
