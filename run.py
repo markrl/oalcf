@@ -280,6 +280,11 @@ def main():
             if base_state_dict is None:
                 # Handle exception where a batch only contains 1 sample
                 data_module.drop_last = True if len(data_module)%params.batch_size==1 else False
+                # Update class weighting if indicated
+                if params.cb_loss:
+                    update_counts(module, data_module)
+                elif params.auto_weight and params.class_loss=='xent':
+                    update_xent(module, data_module, params.auto_mult)
                 # Reset trainer for the new batch
                 reset_trainer(trainer)
                 # Train model on adaptation pool
