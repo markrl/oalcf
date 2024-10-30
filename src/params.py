@@ -68,6 +68,8 @@ def get_params():
                         help='focus parameter for focal loss')
     parser.add_argument('--load_pretrained', type=str, default=None,
                         help='path to pretrained model state dictionary')
+    parser.add_argument('--save_state_dict', default=False, action='store_true',
+                        help='save model state_dict')
 
     # OAL-CF arguments
     parser.add_argument('--al_methods', type=str, default='smax',
