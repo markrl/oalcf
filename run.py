@@ -316,12 +316,12 @@ def main():
         data_module.forget_samples()
     # Save final model and AL samples
     if not params.debug:
-        if params.ensemble:
-            pickle.dump(module.model.model, open('model.p', 'wb'))
-        else:
-            torch.save(module.model.state_dict(), os.path.join(out_dir, 'state_dict.pt'))
         if params.save_state_dict:
-            data_module.save_active_files(os.path.join(out_dir, 'al_samples.txt'))
+            if params.ensemble:
+                pickle.dump(module.model.model, open('model.p', 'wb'))
+            else:
+                torch.save(module.model.state_dict(), os.path.join(out_dir, 'state_dict.pt'))
+        data_module.save_active_files(os.path.join(out_dir, 'al_samples.txt'))
     return os.path.join(out_dir, 'time.txt')
 
 if __name__=='__main__':
