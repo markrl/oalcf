@@ -108,6 +108,8 @@ def get_params():
                         help='ddm for drift-based dynamic budget allocation; `adwin` or `hdddm`')
     parser.add_argument('--budget_path', type=str, default=None,
                         help='load a predefined budget from this directory')
+    parser.add_argument('--initial_budget', type=str, default=None,
+                        help='control the budget of the early sessions, `[samples_per_session],[n_sessions]`')
     parser.add_argument('--adapt_distr', type=float, default=None,
                         help='desired target class representation in adaptation data')
     parser.add_argument('--separate_class_al', default=False, action='store_true',

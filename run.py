@@ -188,7 +188,13 @@ def main():
             print(f'Early stopping patience: {patience}')
 
         # Handle DDM, budgeting, query selection, etc.
-        if params.budget_path is not None:
+        if params.initial_budget is not None:
+            init_budget, n_batches = [int(bb) for bb in params.initial_budget.split(',')]
+            if data_module.current_batch < n_batches:
+                n_queries = init_budget
+            else:
+                n_queries = params.n_queries
+        elif params.budget_path is not None:
             if 'VTD' in params.feat_root:
                 n_queries = int(np.genfromtxt(os.path.join(params.budget_path, params.env_name.split('_')[0], 'budget.txt'))[data_module.current_batch])
             elif 'LID' in params.feat_root:
