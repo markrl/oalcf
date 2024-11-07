@@ -115,7 +115,7 @@ class ImlDataModule(LightningDataModule):
             else:
                 self.train_active_order[self.current_batch] = idxs
         elif self.params.memory_buffer == 'ring':
-            # Deactivate oldest train, activate oldest train, deactivate test
+            # FIFO
             self.data_train.activate_samples(idxs)
             if self.current_batch in self.train_active_order.keys():
                 self.train_active_order[self.current_batch] += idxs
@@ -127,12 +127,44 @@ class ImlDataModule(LightningDataModule):
                 keys.sort()
                 for kk in keys:
                     active_order += self.train_active_order[kk]
-                rem_idxs = active_order[:-self.params.buffer_cap]
-                self.data_train.deactivate_samples(rem_idxs)
+                rm_idxs = active_order[:-self.params.buffer_cap]
+                self.data_train.deactivate_samples(rm_idxs)
                 for kk in self.train_active_order:
-                    for ii in rem_idxs:
+                    for ii in rm_idxs:
                         if ii in self.train_active_order[kk]:
                             self.train_active_order[kk].remove(ii)
+            self.data_test.deactivate_samples(idxs)
+        elif self.params.memory_buffer == 'class':
+            # FIFO, keep class balance
+            self.data_train.activate_samples(idxs)
+            if self.current_batch in self.train_active_order.keys():
+                self.train_active_order[self.current_batch] += idxs
+            else:
+                self.train_active_order[self.current_batch] = idxs
+            if len(self.data_train.active_idxs) > self.params.buffer_cap:
+                active_order = []
+                keys = list(self.train_active_order.keys())
+                keys.sort()
+                for kk in keys:
+                    active_order += self.train_active_order[kk]
+                labels = np.array([self.data_train.get_label(ii) for ii in range(len(self.data_train))])
+                active_order_target = np.array(active_order)[labels==1]
+                active_order_nontarget = np.array(active_order)[labels==0]
+                if len(active_order_target) > self.params.buffer_cap/2 and len(active_order_nontarget) > self.params.buffer_cap/2:
+                    rm_idxs = active_order_target[int(self.params.buffer_cap/2-len(active_order_target)):]
+                    rm_idxs = np.append(rm_idxs, active_order_nontarget[int(self.params.buffer_cap/2-len(active_order_nontarget)):])
+                elif len(active_order_nontarget) > self.params.buffer_cap/2:
+                    rm_idxs = active_order_nontarget[self.params.buffer_cap-len(active_order):]
+                elif len(active_order_target) > self.params.buffer_cap/2:
+                    rm_idxs = active_order_target[self.params.buffer_cap-len(active_order):]
+                self.data_train.deactivate_samples(rm_idxs)
+                for kk in self.train_active_order:
+                    for ii in rm_idxs:
+                        if ii in self.train_active_order[kk]:
+                            self.train_active_order[kk].remove(ii)
+            self.data_test.deactivate_samples(idxs)
+        elif self.params.memory_buffer == 'confidence':
+            self.data_train.activate_samples(idxs)
             self.data_test.deactivate_samples(idxs)
 
     def forget_samples(self):
