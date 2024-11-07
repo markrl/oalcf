@@ -166,6 +166,9 @@ class ImlDataModule(LightningDataModule):
         elif self.params.memory_buffer == 'confidence':
             self.data_train.activate_samples(idxs)
             self.data_test.deactivate_samples(idxs)
+        else:
+            print('Not a valid memory buffer')
+            exit()
 
     def forget_samples(self):
         if self.forget_n_batches is not None:
