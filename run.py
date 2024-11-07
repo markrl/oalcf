@@ -208,7 +208,7 @@ def main():
             sm.est_class = 'target'
             sm.min_samples = params.min_al_samples
             idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, budget)
-            data_module.transfer_samples(idxs_dict[mm])
+            data_module.transfer_samples(idxs_dict[mm], module.model)
             print(f'Target queries: {len(idxs_dict[mm])}')
             budget -= len(idxs_dict[mm])
             n_al = len(idxs_dict[mm])
@@ -217,7 +217,7 @@ def main():
             idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, budget)
             has_drift = adwin.log_batch(data_module.test_dataloader(), module.model)
             print(adwin.drift_idxs)
-            data_module.transfer_samples(idxs_dict[mm])
+            data_module.transfer_samples(idxs_dict[mm], module.model)
             print(f'Nontarget queries: {len(idxs_dict[mm])}')
             p_t, p_n = data_module.get_class_balance()
             print(f'P_t: {p_t:.4f}')
@@ -235,14 +235,14 @@ def main():
             else:
                 n_queries = budget_dict['none']
             idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, n_queries)
-            data_module.transfer_samples(idxs_dict[mm])
+            data_module.transfer_samples(idxs_dict[mm], module.model)
             n_al = len(idxs_dict[mm])
         else:
             dist = None
             idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, n_queries)
             has_drift = adwin.log_batch(data_module.test_dataloader(), module.model)
             print(adwin.drift_idxs)
-            data_module.transfer_samples(idxs_dict[mm])
+            data_module.transfer_samples(idxs_dict[mm], module.model)
             n_al = len(idxs_dict[mm])
 
         # Handle exception where a batch only contains 1 sample
@@ -282,7 +282,7 @@ def main():
             cf_classes = [data_module.data_test[ii][1] for ii in cf_idxs]
             cf_p = int(np.sum(cf_classes))
             cf_n = n_cf - cf_p
-            data_module.transfer_samples(cf_idxs)
+            data_module.transfer_samples(cf_idxs, module.model)
             if base_state_dict is None:
                 # Handle exception where a batch only contains 1 sample
                 data_module.drop_last = True if len(data_module)%params.batch_size==1 else False

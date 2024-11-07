@@ -1,6 +1,7 @@
 import os
 import glob
 import torch
+import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from pytorch_lightning import LightningDataModule
 from pytorch_lightning.callbacks import Callback
@@ -28,6 +29,7 @@ class ImlDataModule(LightningDataModule):
         self.drop_last = False
         self.train_active_order = {}
         self.forget_n_batches = params.forget_n_batches
+        self.use_gpu = params.gpus > 0 and torch.cuda.is_available()
 
     def setup(self, stage):
         return
@@ -41,14 +43,14 @@ class ImlDataModule(LightningDataModule):
             drop_last=self.drop_last,
         )
 
-    def val_dataloader(self):
-        data_val = ImlData(self.params, False, train_ds=self.data_train)
-        return DataLoader(
-            dataset=data_val,
-            batch_size=self.params.batch_size,
-            num_workers=self.params.nworkers,
-            shuffle=False,
-        )
+    # def val_dataloader(self):
+    #     data_val = ImlData(self.params, False, train_ds=self.data_train)
+    #     return DataLoader(
+    #         dataset=data_val,
+    #         batch_size=self.params.batch_size,
+    #         num_workers=self.params.nworkers,
+    #         shuffle=False,
+    #     )
 
     def test_dataloader(self):
         return DataLoader(
@@ -103,7 +105,7 @@ class ImlDataModule(LightningDataModule):
         p_nontarget = n_nontarget/(n_target+n_nontarget)
         return p_target,p_nontarget
 
-    def transfer_samples(self, idxs):
+    def transfer_samples(self, idxs, model=None):
         # Convert given inidices to base indices. This is the only function where this is necessary.
         idxs = [self.data_test.active_idxs[ii] for ii in idxs]
         if self.params.memory_buffer is None:
@@ -164,7 +166,21 @@ class ImlDataModule(LightningDataModule):
                             self.train_active_order[kk].remove(ii)
             self.data_test.deactivate_samples(idxs)
         elif self.params.memory_buffer == 'confidence':
+            # Not FIFO, choose the least confident samples
             self.data_train.activate_samples(idxs)
+            if self.current_batch in self.train_active_order.keys():
+                self.train_active_order[self.current_batch] += idxs
+            else:
+                self.train_active_order[self.current_batch] = idxs
+            if len(self.data_train.active_idxs) > self.params.buffer_cap:
+                confidence_scores = self.get_confidence(model)
+                sorted_idxs = np.argsort(confidence_scores)
+                rm_idxs = np.array(self.data_train.active_idxs)[sorted_idxs[self.params.buffer_cap-len(self.data_train.active_idxs):]]
+                self.data_train.deactivate_samples(rm_idxs)
+                for kk in self.train_active_order:
+                    for ii in rm_idxs:
+                        if ii in self.train_active_order[kk]:
+                            self.train_active_order[kk].remove(ii)
             self.data_test.deactivate_samples(idxs)
         else:
             print('Not a valid memory buffer')
@@ -228,6 +244,19 @@ class ImlDataModule(LightningDataModule):
             return None
         labels = [self.data_test.get_label(ii) for ii in np.arange(len(self.data_test))]
         return torch.LongTensor(labels)
+    
+    def get_confidence(self, model):
+        model.eval()
+        loader = self.train_dataloader()
+        with torch.no_grad():
+            if self.use_gpu:
+                model = model.cuda()
+                logits = [model(batch[0].cuda())[-1] for batch in loader]
+            else:
+                logits = [model(batch[0])[-1] for batch in loader]
+        logits = torch.cat(logits, dim=0).cpu()
+        scores, _ = torch.max(F.softmax(logits, dim=-1), dim=-1)
+        return scores.numpy()
     
 
 class BaseVtdData(Dataset):
