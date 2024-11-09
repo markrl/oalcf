@@ -6,6 +6,7 @@ from torch.utils.data import Dataset, DataLoader
 from pytorch_lightning import LightningDataModule
 from pytorch_lightning.callbacks import Callback
 import numpy as np
+from sklearn.cluster import KMeans
 from statistics import mean
 from copy import deepcopy
 
@@ -92,6 +93,7 @@ class ImlDataModule(LightningDataModule):
             self.data_test.reset_idxs()
         self.data_train.activate_samples(idxs)
         self.train_active_order[self.current_batch] = idxs
+        self.data_train.limit_data(self.data_test)
 
     def get_class_counts(self):
         labels = torch.FloatTensor([self.ds.get_label(ii) for ii in self.data_train.active_idxs])
@@ -185,6 +187,7 @@ class ImlDataModule(LightningDataModule):
         else:
             print('Not a valid memory buffer')
             exit()
+        self.data_train.limit_data(self.data_test)
 
     def forget_samples(self):
         if self.forget_n_batches is not None:
@@ -458,9 +461,16 @@ class ImlData(Dataset):
             elif params.pair_type=='neighbors':
                 self.close_neighbors = True
                 self.extremes = {}
+            
+            if params.limit_train_size is not None:
+                self.limit_train_size = params.limit_train_size
+                self.limited_idxs = []
+                self.cluster = KMeans(n_clusters=4, n_init='auto')
+        else:
+            self.limit_train_size = None
 
     def __len__(self):
-        return len(self.active_idxs)
+        return len(self.active_idxs) if self.limit_train_size is None else len(self.limited_idxs)
 
     def inactive_len(self):
         return len(self.inactive_idxs)
@@ -515,15 +525,16 @@ class ImlData(Dataset):
         self.inactive_idx = []
 
     def __getitem__(self, index):
-        idx1 = self.active_idxs[index]
+        idx_converter = self.active_idxs if self.limit_train_size is None else self.limited_idxs
+        idx1 = idx_converter[index]
         feat1, label1 = self.base_ds[idx1]
         if self.training:
             if self.params.pair_type=='rand':
-                idx2 = self.active_idxs[np.random.randint(low=0, high=len(self))]
+                idx2 = idx_converter[np.random.randint(low=0, high=len(self))]
             elif self.params.pair_type=='offset':
-                idx2 = self.active_idxs[self.choose_pair_idx(index)]
+                idx2 = idx_converter[self.choose_pair_idx(index)]
             elif self.params.pair_type=='neighbors':
-                idx2 = self.active_idxs[self.extremes[index][self.close_neighbors]]
+                idx2 = idx_converter[self.extremes[index][self.close_neighbors]]
             feat2, label2 = self.base_ds[idx2]
             return feat1, label1, feat2, label2
         else:
@@ -532,6 +543,20 @@ class ImlData(Dataset):
     def get_label(self, index):
         index = self.active_idxs[index]
         return self.base_ds.get_label(index)
+    
+    def limit_data(self, comp_data):
+        if self.limit_train_size is not None and len(self.active_idxs) > self.limit_train_size:
+            # Cluster comparison data
+            comp_data = np.array([comp_data[nn][0].numpy() for nn in range(len(comp_data))])
+            train_data = np.array([self[nn][0].numpy() for nn in range(len(self))])
+            self.cluster.fit(comp_data)
+            centers = self.cluster.cluster_centers_
+            # Choose the samples that are most similar to the comparison data
+            dists = [np.linalg.norm(center-train_data, axis=-1) for center in centers]
+            mean_dists = np.mean(dists, axis=0)
+            self.limited_idxs = [self.active_idxs[ii] for ii in np.argsort(mean_dists)][:self.limit_train_size]
+        else:
+            self.limited_idxs = self.active_idxs
     
     def choose_pair_idx(self, index):
         pair_index = (index + self.offset) % len(self)

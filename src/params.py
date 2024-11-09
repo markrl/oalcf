@@ -130,6 +130,8 @@ def get_params():
                         help='type of memory buffer')
     parser.add_argument('--buffer_cap', type=int, default=1000,
                         help='maximum memory buffer size')
+    parser.add_argument('--limit_train_size', type=int, default=None,
+                        help='maximum training set size')
     parser.add_argument('--reverse_order', default=False, action='store_true',
                         help='run OAL backward')
     parser.add_argument('--pair_type', type=str, default='rand',
