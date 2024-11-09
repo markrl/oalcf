@@ -545,7 +545,7 @@ class ImlData(Dataset):
         return self.base_ds.get_label(index)
     
     def limit_data(self, comp_data):
-        if self.limit_train_size is not None and len(self.active_idxs) > self.limit_train_size:
+        if self.limit_train_size is not None and len(self.active_idxs) > self.limit_train_size and len(comp_data) > 0:
             # Cluster comparison data
             comp_data = np.array([comp_data[nn][0].numpy() for nn in range(len(comp_data))])
             train_data = np.array([self[nn][0].numpy() for nn in range(len(self))])
