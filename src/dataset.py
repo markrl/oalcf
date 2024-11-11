@@ -466,6 +466,8 @@ class ImlData(Dataset):
                 self.limit_train_size = params.limit_train_size
                 self.limited_idxs = []
                 self.cluster = KMeans(n_clusters=4, n_init='auto')
+            else:
+                self.limit_train_size = None
         else:
             self.limit_train_size = None
 
