@@ -471,7 +471,7 @@ class ImlData(Dataset):
             if params.limit_train_size is not None:
                 self.limit_train_size = params.limit_train_size
                 self.limited_idxs = []
-                self.n_clusters = 8
+                self.n_clusters = 2
                 self.cluster = KMeans(n_clusters=self.n_clusters, n_init='auto')
             else:
                 self.limit_train_size = None
