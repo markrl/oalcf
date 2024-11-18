@@ -288,6 +288,9 @@ class BaseVtdData(Dataset):
             self.label_files.remove(lf)
             self.feat_files.remove(ff)
 
+        self.feat_files *= params.repeat_dataset
+        self.labels *= params.repeat_dataset
+
         if params.reverse_order:
             self.label_files.reverse()
             self.feat_files.reverse()
@@ -380,6 +383,9 @@ class BaseLidData(Dataset):
                     self.labels.append(0)
                 self.feat_files.append(os.path.join(prefix, '{}', self.env, line+'.npy'))
 
+        self.feat_files *= params.repeat_dataset
+        self.labels *= params.repeat_dataset
+
         if params.reverse_order:
             self.feat_files.reverse()
             self.labels.reverse()
@@ -465,7 +471,8 @@ class ImlData(Dataset):
             if params.limit_train_size is not None:
                 self.limit_train_size = params.limit_train_size
                 self.limited_idxs = []
-                self.cluster = KMeans(n_clusters=4, n_init='auto')
+                self.n_clusters = 8
+                self.cluster = KMeans(n_clusters=self.n_clusters, n_init='auto')
             else:
                 self.limit_train_size = None
         else:
@@ -547,7 +554,7 @@ class ImlData(Dataset):
         return self.base_ds.get_label(index)
     
     def limit_data(self, comp_data):
-        if self.limit_train_size is not None and len(self.active_idxs) > self.limit_train_size and len(comp_data) >= 4:
+        if self.limit_train_size is not None and len(self.active_idxs) > self.limit_train_size and len(comp_data) >= self.n_clusters:
             # Cluster comparison data
             comp_data = np.array([comp_data[nn][0].numpy() for nn in range(len(comp_data))])
             train_data = np.array([self[nn][0].numpy() for nn in range(len(self))])

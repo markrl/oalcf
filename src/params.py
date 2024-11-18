@@ -178,6 +178,8 @@ def get_params():
                         help='environment specification')
     parser.add_argument('--lid_target', type=str, default=None,
                         help='target class for LID task')
+    parser.add_argument('--repeat_dataset', type=int, default=1,
+                        help='extend the data stream by repeating the dataset this many times')
 
 
     return parser.parse_args()
