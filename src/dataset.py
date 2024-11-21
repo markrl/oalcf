@@ -42,6 +42,7 @@ class ImlDataModule(LightningDataModule):
             num_workers=self.params.nworkers,
             shuffle=self.params.shuffle_train,
             drop_last=self.drop_last,
+            # pin_memory=True,
         )
 
     # def val_dataloader(self):
@@ -51,6 +52,7 @@ class ImlDataModule(LightningDataModule):
     #         batch_size=self.params.batch_size,
     #         num_workers=self.params.nworkers,
     #         shuffle=False,
+    #         pin_memory=True,
     #     )
 
     def test_dataloader(self):
@@ -59,6 +61,7 @@ class ImlDataModule(LightningDataModule):
             batch_size=self.params.batch_size,
             num_workers=self.params.nworkers,
             shuffle=False,
+            # pin_memory=True,
         )
 
     def idx_loader(self, idxs):

@@ -23,6 +23,7 @@ from utils.hdddm import HDDDM
 from pdb import set_trace
 
 def main():
+    torch.set_flush_denormal(True)
     torch.set_num_threads(1)
     torch.use_deterministic_algorithms(True)
     # Get and handle parameters
@@ -260,6 +261,9 @@ def main():
         # Delete old checkpoints
         if params.load_best:
             os.system(f'rm -rf {ckpt_dir}/best*.ckpt')
+        # Reset weights, if indicated
+        if params.reset_weights:
+            module.model.load_state_dict(base_state_dict)
         # Train model on adaptation pool
         fit_start_time = time.monotonic()
         trainer.fit(module, data_module)
@@ -293,6 +297,9 @@ def main():
                     update_xent(module, data_module, params.auto_mult)
                 # Reset trainer for the new batch
                 reset_trainer(trainer)
+                # Reset weights, if indicated
+                if params.reset_weights:
+                    module.model.load_state_dict(base_state_dict)
                 # Train model on adaptation pool
                 fit_start_time = time.monotonic()
                 trainer.fit(module, data_module)
