@@ -144,14 +144,14 @@ def reset_trainer(trainer):
     trainer.callbacks[0].wait_count = 0
     trainer.callbacks[0].stopped_epoch = 0
     trainer.callbacks[0].best_score = torch.tensor(torch.inf)
-    trainer.callbacks[3].best_model_score = None
-    trainer.callbacks[3].best_k_models = {}
-    trainer.callbacks[3].kth_best_model_path = ''
-    trainer.callbacks[3].kth_value = torch.tensor(torch.inf)
-    trainer.callbacks[3]._last_global_step_saved = 0
-    trainer.callbacks[3]._last_time_checked = None
-    trainer.callbacks[3].current_score = None
-    trainer.callbacks[3].best_model_path = ''
+    # trainer.callbacks[3].best_model_score = None
+    # trainer.callbacks[3].best_k_models = {}
+    # trainer.callbacks[3].kth_best_model_path = ''
+    # trainer.callbacks[3].kth_value = torch.tensor(torch.inf)
+    # trainer.callbacks[3]._last_global_step_saved = 0
+    # trainer.callbacks[3]._last_time_checked = None
+    # trainer.callbacks[3].current_score = None
+    # trainer.callbacks[3].best_model_path = ''
 
 def update_xent(module, data_module, mult=1):
     p_target, p_nontarget = data_module.get_class_balance()

@@ -129,7 +129,8 @@ def main():
         overfit_batches=params.overfit_batches,
         max_epochs=params.max_epochs,
         check_val_every_n_epoch=params.val_every_n_epochs,
-        logger=None,
+        logger=False,
+        enable_checkpointing=False,
         log_every_n_steps=1,
         num_sanity_val_steps=1 if params.debug else 0,
     )
