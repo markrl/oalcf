@@ -45,6 +45,7 @@ def main():
             data_root = '/data'
         if params.lid_target is None:
             params.feat_root = os.path.join(data_root, 'vtd/wavlm_11k_1hr')+','+os.path.join(data_root, 'vtd/xvectors_11k_1hr')
+            params.ann_root = os.path.join(data_root, 'vtd/all_labels_1hr')
         else:
             for corpus in os.listdir(os.path.join(data_root, 'slv')):
                 file_list = glob.glob(os.path.join(data_root, 'slv', corpus, 

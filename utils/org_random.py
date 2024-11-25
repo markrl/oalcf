@@ -6,7 +6,7 @@ from tqdm import tqdm
 def main():
     out_dir = 'orders'
     for subdir in ['train', 'dev', 'test']:
-        file_list = glob.glob(os.path.join('wavlm', subdir, '*.npy'))
+        file_list = glob.glob(os.path.join('/data/slv/SoutheastAsianLID/ecapalang', subdir, '*.npy'))
         random.shuffle(file_list)
         out_file = open(os.path.join(out_dir, f'random_order_{subdir}'), 'w')
         print(subdir)

@@ -17,10 +17,10 @@ class ImlDataModule(LightningDataModule):
         self.params = params
         super().__init__()
         # Form dataset
-        if 'VTD' in params.feat_root:
+        if 'VTD' in params.feat_root.upper():
             self.ds = BaseVtdData(params)
             self.task = 'vtd'
-        elif 'LID' in params.feat_root:
+        elif 'LID' in params.feat_root.upper():
             self.ds = BaseLidData(params)
             self.task = 'lid'
         self.data_train = ImlData(params, True, self.ds)
@@ -292,7 +292,7 @@ class BaseVtdData(Dataset):
             self.feat_files.remove(ff)
 
         self.feat_files *= params.repeat_dataset
-        self.labels *= params.repeat_dataset
+        self.label_files *= params.repeat_dataset
 
         if params.reverse_order:
             self.label_files.reverse()
