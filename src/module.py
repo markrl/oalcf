@@ -49,6 +49,7 @@ class VtdModule(LightningModule):
             self.n_target = 0
             self.n_nontarget = 0
             self.beta = params.beta
+        self.postquential = False
 
     def forward(self, x):
         return self.model(x)
@@ -109,14 +110,15 @@ class VtdModule(LightningModule):
         self.test_ps += torch.sum(y==1)
         self.test_ns += torch.sum(y==0)
 
-        fn_idxs = idxs[torch.where(torch.logical_and(pred==0, y==1))[0]]
-        fp_idxs = idxs[torch.where(torch.logical_and(pred==1, y==0))[0]]
-        with open('output/'+self.params.run_name+'/fn_list.txt', 'a') as f:
-            for idx in fn_idxs:
-                f.write(str(idx.item()) + '\n')
-        with open('output/'+self.params.run_name+'/fp_list.txt', 'a') as f:
-            for idx in fp_idxs:
-                f.write(str(idx.item()) + '\n')
+        if self.postquential:
+            fn_idxs = idxs[torch.where(torch.logical_and(pred==0, y==1))[0]]
+            fp_idxs = idxs[torch.where(torch.logical_and(pred==1, y==0))[0]]
+            with open('output/'+self.params.run_name+'/fn_list.txt', 'a') as f:
+                for idx in fn_idxs:
+                    f.write(str(idx.item()) + '\n')
+            with open('output/'+self.params.run_name+'/fp_list.txt', 'a') as f:
+                for idx in fp_idxs:
+                    f.write(str(idx.item()) + '\n')
 
     def on_test_epoch_end(self):
         fnr = self.test_fns/self.test_ps if self.test_ps > 0 else 0.0

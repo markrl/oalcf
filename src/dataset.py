@@ -550,7 +550,8 @@ class ImlData(Dataset):
             feat2, label2 = self.base_ds[idx2]
             return feat1, label1, feat2, label2
         else:
-            return feat1, label1, idx1
+            data_idx = idx1 - self.base_ds.n_boot_batches*self.params.samples_per_batch
+            return feat1, label1, data_idx
     
     def get_label(self, index):
         index = self.active_idxs[index]

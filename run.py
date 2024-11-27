@@ -173,6 +173,7 @@ def main():
         # Print current session name and number
         print(f'STARTING {data_module.get_current_session_name()} ({data_module.current_batch+1}/{data_module.n_batches})')
         # Get prequential evaluation metrics from this batch
+        module.postquential = False
         inference_start_time = time.monotonic()
         test_results = trainer.test(module, data_module)
         total_inference_time += time.monotonic()-inference_start_time
@@ -276,6 +277,7 @@ def main():
             module = VtdModule.load_from_checkpoint(ckpt_dir+'/best.ckpt')
         # Get postquential evaluation metrics from this batch
         if len(data_module.data_test) > 0:
+            module.postquential = True
             inference_start_time = time.monotonic()
             test_results = trainer.test(module, data_module)
             total_inference_time += time.monotonic()-inference_start_time
