@@ -26,7 +26,7 @@ class AdwinDriftDetector:
         model.eval()
         with torch.no_grad():
             for bb in data:
-                x,y,_,_ = bb
+                x,y,_ = bb
                 if self.use_gpu:
                     x = x.cuda()
                 y_hat = torch.argmax(model(x)[1], dim=-1).cpu()

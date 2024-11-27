@@ -550,7 +550,7 @@ class ImlData(Dataset):
             feat2, label2 = self.base_ds[idx2]
             return feat1, label1, feat2, label2
         else:
-            return feat1, label1, 0, 0
+            return feat1, label1, idx1
     
     def get_label(self, index):
         index = self.active_idxs[index]

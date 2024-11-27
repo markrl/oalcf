@@ -79,15 +79,9 @@ class VtdModule(LightningModule):
         self.log('train/acc', acc, on_step=False, on_epoch=True)
         return loss
 
-    # def validation_step(self, batch, batch_idx):
-    #     return
-
-    # def on_validation_epoch_end(self):
-    #     return
-
     def test_step(self, batch, batch_idx):
         if self.params.ensemble:
-            x,y,_,_ = batch
+            x,y,idxs = batch
             y_hat = self(x)
             pred = torch.argmax(y_hat, dim=1)
             acc = torch.mean(1.0*(pred==y))
@@ -100,7 +94,7 @@ class VtdModule(LightningModule):
             self.test_scores.append(y_hat[:,1])
             self.test_labels.append(y)
             return
-        x,y,_,_ = batch
+        x,y,idxs = batch
         y_hat = self(x)[1]
         loss = self.criterion(y_hat,y)
         if self.params.cb_loss:
@@ -114,6 +108,15 @@ class VtdModule(LightningModule):
         self.test_fns += torch.sum(torch.logical_and(y==1, pred==0))
         self.test_ps += torch.sum(y==1)
         self.test_ns += torch.sum(y==0)
+
+        fn_idxs = idxs[torch.where(torch.logical_and(pred==0, y==1))[0]]
+        fp_idxs = idxs[torch.where(torch.logical_and(pred==1, y==0))[0]]
+        with open('output/'+self.params.run_name+'/fn_list.txt', 'a') as f:
+            for idx in fn_idxs:
+                f.write(str(idx.item()) + '\n')
+        with open('output/'+self.params.run_name+'/fp_list.txt', 'a') as f:
+            for idx in fp_idxs:
+                f.write(str(idx.item()) + '\n')
 
     def on_test_epoch_end(self):
         fnr = self.test_fns/self.test_ps if self.test_ps > 0 else 0.0
