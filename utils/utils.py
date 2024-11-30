@@ -173,16 +173,14 @@ def update_counts(module, data_module):
 
 def write_header(out_file, al_methods, ddm_exists=False):
     f = open(out_file, 'w')
-    f.write('pass,time,train_time,train_epochs,inference_time,pre_dcf,pre_fnr,pre_fpr,dcf,fnr,fpr,pre_ns,pre_ps,ns,ps,pre_fns,pre_fps,fns,fps,p_target,p_nontarget,n_samples,cum_pre_dcf,cum_dcf,n_al,cf_tp,cf_fp,drift')
+    f.write('pass,time,train_time,train_epochs,inference_time,pre_dcf,pre_fnr,pre_fpr,dcf,fnr,fpr,pre_ns,pre_ps,ns,ps,pre_fns,pre_fps,fns,fps,p_target,p_nontarget,n_samples,cum_pre_dcf,cum_dcf,n_al,cf_tp,cf_fp,drift,model_zeros')
     if len(al_methods)==1 and al_methods[0]!='rand':
         f.write(',metric')
-    if ddm_exists:
-        f.write(',drift')
     f.write('\n')
     f.close()
 
 def write_session(out_file, current_batch, test_results, error_counts, class_balance, n_samples, metric, 
-                  drift_dist, n_al, cf_p, cf_n, has_drift, times, epochs):
+                  drift_dist, n_al, cf_p, cf_n, has_drift, times, epochs, model_zeros):
     elapsed_time, training_time, inference_time = times
     pre_fps, pre_fns, pre_ps, pre_ns, fps, fns, ps, ns = error_counts
     p_target, p_nontarget = class_balance
@@ -209,11 +207,9 @@ def write_session(out_file, current_batch, test_results, error_counts, class_bal
     fnr = torch.sum(torch.LongTensor(fns))/torch.sum(torch.LongTensor(ps)) if torch.sum(torch.LongTensor(ps))>0 else 0
     fpr = torch.sum(torch.LongTensor(fps))/torch.sum(torch.LongTensor(ns)) if torch.sum(torch.LongTensor(ns))>0 else 0
     cum_dcf = 0.75*fnr + 0.25*fpr
-    f.write(f',{cum_dcf:.4f},{n_al:d},{cf_p:d},{cf_n:d},{has_drift:d}')
+    f.write(f',{cum_dcf:.4f},{n_al:d},{cf_p:d},{cf_n:d},{has_drift:d},{model_zeros:d}')
     if metric is not None:
         f.write(f',{metric:.4f}')
-    if drift_dist is not None:
-        f.write(f',{drift_dist:.4f}')
     f.write('\n')
     f.close()
 

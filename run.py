@@ -326,9 +326,12 @@ def main():
                 ps.append(int(test_results[0]['test/ps']))
                 ns.append(int(test_results[0]['test/ns']))
             metric = None if len(al_methods)>1 or mm=='rand' else metrics_dict[mm]
+            model_zeros = 0
+            for p in module.model.parameters():
+                model_zeros += torch.sum(p==0)
             write_session(out_file, data_module.current_batch, test_results, (pre_fps,pre_fns,pre_ps,pre_ns,fps,fns,ps,ns), 
                             data_module.get_class_balance(), len(data_module.data_train.active_idxs), metric, dist, n_al, cf_p, cf_n, 
-                            has_drift, (time.monotonic()-batch_start_time, total_training_time, total_inference_time), total_training_epochs)
+                            has_drift, (time.monotonic()-batch_start_time, total_training_time, total_inference_time), total_training_epochs, model_zeros)
         # Prepare transition to next batch
         module.n_train = len(data_module)
         data_module.next_batch()
