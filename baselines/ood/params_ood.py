@@ -86,8 +86,8 @@ def get_params():
                         help='use ensemble model')
 
     # Data arguments
-    parser.add_argument('--feat_root', type=str, default='/data/VTD/wavlm_11k_1hr/,/data/VTD/xvectors_11k_1hr',
-                        help='root directory for features')
+    parser.add_argument('--feat_root', type=str, default='auto',
+                        help='root directory for features; `auto` uses the best features for the task')
     parser.add_argument('--ann_root', type=str, default='/data/VTD/VTD_labels/all_labels_1hr',
                         help='path to annotations')
     parser.add_argument('--order_file', type=str, default='cluster',
@@ -98,7 +98,7 @@ def get_params():
                         help='corpus specification')
     parser.add_argument('--eval_run', type=str,
                         help='directory of run to evaluate')
-    parser.add_argument('--lid_target', type=str, default='ha',
+    parser.add_argument('--lid_target', type=str, default=None,
                         help='target class for LID task')
     parser.add_argument('--desired_target_percentage', type=float, default=None,
                         help='adjust training data to contain this fraction of target samples')

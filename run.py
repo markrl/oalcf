@@ -23,9 +23,9 @@ from utils.hdddm import HDDDM
 from pdb import set_trace
 
 def main():
+    # General pytorch settings
     torch.set_flush_denormal(True)
     torch.set_num_threads(1)
-    torch.use_deterministic_algorithms(True)
     # Get and handle parameters
     params = get_params()
     # Set pytorch precision
@@ -35,6 +35,8 @@ def main():
         torch.set_float32_matmul_precision('high')
     # Determine whether to use a GPU
     use_gpu = (params.gpus>0 and torch.cuda.is_available())
+    if not use_gpu:
+        torch.use_deterministic_algorithms(True)
     if params.overfit_batches >= 1:
         params.overfit_batches = int(params.overfit_batches)
     # Handle feature directory

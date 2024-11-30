@@ -15,11 +15,11 @@ class SupervisedDataModule(LightningDataModule):
         self.params = params
         super().__init__()
         # Form dataset
-        if 'VTD' in params.feat_root:
+        if 'VTD' in params.feat_root.upper():
             self.data_train = VtdData(params, 'train')
             self.data_val = VtdData(params, 'val')
             self.data_test = VtdData(params, 'test')
-        elif 'LID' in params.feat_root:
+        elif 'LID' in params.feat_root.upper():
             self.data_train = LidData(params, 'train')
             self.data_val = LidData(params, 'dev')
             self.data_test = LidData(params, 'test')
@@ -363,12 +363,12 @@ if __name__=='__main__':
     from params_ood import get_params
     params = get_params()
     if params.eval_run is None:
-        data_module = VtdDataModule(params)
+        data_module = SupervisedDataModule(params)
         print('Train length:',len(data_module.data_train.label_files))
         print('Val length:',len(data_module.data_val.label_files))
         print('Test length',len(data_module.data_test.label_files))
         print(data_module.data_train[0])
     else:
-        data_module = VtdEvalDataModule(params)
+        data_module = SupervisedDataModule(params)
         print(f'Original length: {len(data_module.data_test.feat_files):d} hours')
         print(f'Reduced length: {len(data_module)*5/3600:.1f} hours')
