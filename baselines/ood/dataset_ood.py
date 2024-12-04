@@ -116,7 +116,7 @@ class VtdData(Dataset):
         label1 = self.get_label(index)
         feat1 = self.get_sample_with_context(index)
         if self.fold!='train':
-            return torch.from_numpy(feat1).float(), label1, 0, 0
+            return torch.from_numpy(feat1).float(), label1, 0
         else:
             idx2 = np.random.randint(low=0, high=len(self))
             label2 = self.get_label(idx2)
@@ -200,7 +200,7 @@ class LidData(Dataset):
         label1 = self.get_label(index)
         feat1 = self.get_sample_with_context(index)
         if self.fold!='train':
-            return torch.from_numpy(feat1).float(), label1, 0, 0
+            return torch.from_numpy(feat1).float(), label1, 0
         else:
             idx2 = np.random.randint(low=0, high=len(self))
             label2 = self.get_label(idx2)
@@ -327,7 +327,7 @@ class VtdEvalData(Dataset):
         index = self.active_idxs[index]
         label1 = self.get_label(index)
         feat1 = self.get_sample_with_context(index)
-        return torch.from_numpy(feat1).float(), label1, 0, 0
+        return torch.from_numpy(feat1).float(), label1, 0
 
     def get_sample_with_context(self, index):
         file_idx = int(index / self.params.samples_per_batch)
