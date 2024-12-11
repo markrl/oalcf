@@ -116,7 +116,7 @@ class ImlDataModule(LightningDataModule):
         if self.params.memory_buffer is None:
             # Activate train, deactivate test
             self.data_train.activate_samples(idxs)
-            self.data_test.deactivate_samples(idxs)
+            # self.data_test.deactivate_samples(idxs)
             if self.current_batch in self.train_active_order.keys():
                 self.train_active_order[self.current_batch] += idxs
             else:
@@ -140,7 +140,7 @@ class ImlDataModule(LightningDataModule):
                     for ii in rm_idxs:
                         if ii in self.train_active_order[kk]:
                             self.train_active_order[kk].remove(ii)
-            self.data_test.deactivate_samples(idxs)
+            # self.data_test.deactivate_samples(idxs)
         elif self.params.memory_buffer == 'class':
             # FIFO, keep class balance
             self.data_train.activate_samples(idxs)
@@ -169,7 +169,7 @@ class ImlDataModule(LightningDataModule):
                     for ii in rm_idxs:
                         if ii in self.train_active_order[kk]:
                             self.train_active_order[kk].remove(ii)
-            self.data_test.deactivate_samples(idxs)
+            # self.data_test.deactivate_samples(idxs)
         elif self.params.memory_buffer == 'confidence':
             # Not FIFO, choose the least confident samples
             self.data_train.activate_samples(idxs)
@@ -186,7 +186,7 @@ class ImlDataModule(LightningDataModule):
                     for ii in rm_idxs:
                         if ii in self.train_active_order[kk]:
                             self.train_active_order[kk].remove(ii)
-            self.data_test.deactivate_samples(idxs)
+            # self.data_test.deactivate_samples(idxs)
         else:
             print('Not a valid memory buffer')
             exit()

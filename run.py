@@ -165,6 +165,8 @@ def main():
     fps, fns = [], []
     pre_fps, pre_fns = [], []
     pre_ps, pre_ns = [], []
+    diag_fps, diag_fns = [], []
+    diag_ps, diag_ns = [], []
     budget = 0
     mm = 'combo' if params.combo is not None else al_methods[0]
     # Loop through all batches
@@ -311,8 +313,10 @@ def main():
                 trainer.fit(module, data_module)
                 total_training_time += time.monotonic()-fit_start_time
                 total_training_epochs += trainer.fit_loop.epoch_progress.total.completed
+                diagnostic_test_results = trainer.test(module, data_module)
         else:
             cf_p, cf_n = 0, 0
+            diagnostic_test_results = None
         # Write results to file
         if not params.debug:
             if test_results is None:
@@ -325,13 +329,25 @@ def main():
                 fns.append(int(test_results[0]['test/fns']))
                 ps.append(int(test_results[0]['test/ps']))
                 ns.append(int(test_results[0]['test/ns']))
+            if diagnostic_test_results is None:
+                diag_fps.append(0)
+                diag_fns.append(0)
+                diag_ps.append(0)
+                diag_ns.append(0)
+            else:
+                diag_fps.append(int(diagnostic_test_results[0]['test/fps']))
+                diag_fns.append(int(diagnostic_test_results[0]['test/fns']))
+                diag_ps.append(int(diagnostic_test_results[0]['test/ps']))
+                diag_ns.append(int(diagnostic_test_results[0]['test/ns']))
             metric = None if len(al_methods)>1 or mm=='rand' else metrics_dict[mm]
             model_zeros = 0
             for p in module.model.parameters():
                 model_zeros += torch.sum(p==0)
-            write_session(out_file, data_module.current_batch, test_results, (pre_fps,pre_fns,pre_ps,pre_ns,fps,fns,ps,ns), 
-                            data_module.get_class_balance(), len(data_module.data_train.active_idxs), metric, dist, n_al, cf_p, cf_n, 
-                            has_drift, (time.monotonic()-batch_start_time, total_training_time, total_inference_time), total_training_epochs, model_zeros)
+            write_session(out_file, data_module.current_batch, test_results, 
+                          (pre_fps,pre_fns,pre_ps,pre_ns,fps,fns,ps,ns,diag_fps,diag_fns,diag_ps,diag_ns), 
+                          data_module.get_class_balance(), len(data_module.data_train.active_idxs), metric, dist, n_al, cf_p, cf_n, 
+                          has_drift, (time.monotonic()-batch_start_time, total_training_time, total_inference_time), 
+                          total_training_epochs, model_zeros)
         # Prepare transition to next batch
         module.n_train = len(data_module)
         data_module.next_batch()
