@@ -112,7 +112,7 @@ def main():
         mode=params.mode,
         patience=params.patience if params.patience_start is None else params.patience_start,
         min_delta=params.min_delta,
-        stopping_threshold=0
+        stopping_threshold=0.0 if params.mode=='min' else 1.0
     ))
     if params.pair_type=='offset':
         callbacks.append(IncOffsetCallback())
