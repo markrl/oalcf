@@ -77,7 +77,7 @@ class VtdModule(LightningModule):
         self.log('train/loss', loss.item(), on_step=False, on_epoch=True)
         pred = torch.argmax(y_hat, dim=-1)
         acc = torch.mean(1.0*(pred==y1))
-        self.log('train/acc', acc, on_step=False, on_epoch=True)
+        self.log('train/acc', acc, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
     def test_step(self, batch, batch_idx):
