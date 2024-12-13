@@ -45,6 +45,8 @@ class VtdModule(LightningModule):
         self.test_ns = 0
         self.test_ps = 0
         self.n_train = 0
+        self.train_correct = 0
+        self.train_incorrect = 0
         if params.cb_loss:
             self.n_target = 0
             self.n_nontarget = 0
@@ -76,9 +78,17 @@ class VtdModule(LightningModule):
             loss = torch.mean(loss)
         self.log('train/loss', loss.item(), on_step=False, on_epoch=True)
         pred = torch.argmax(y_hat, dim=-1)
-        acc = torch.mean(1.0*(pred==y1))
-        self.log('train/acc', acc, on_step=False, on_epoch=True, prog_bar=True)
+        self.train_correct += torch.sum(1*(pred==y1))
+        self.train_incorrect += torch.sum(1*(pred!=y1))
+        # acc = torch.mean(1.0*(pred==y1))
+        # self.log('train/acc', acc, on_step=False, on_epoch=True, prog_bar=True)
         return loss
+
+    def on_train_epoch_end(self):
+        acc = self.train_correct/(self.train_correct+self.train_incorrect)
+        self.log('train/acc', acc, prog_bar=True)
+        self.train_correct = 0
+        self.train_incorrect = 0
 
     def test_step(self, batch, batch_idx):
         if self.params.ensemble:
