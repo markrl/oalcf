@@ -45,15 +45,15 @@ class ImlDataModule(LightningDataModule):
             # pin_memory=True,
         )
 
-    # def val_dataloader(self):
-    #     data_val = ImlData(self.params, False, train_ds=self.data_train)
-    #     return DataLoader(
-    #         dataset=data_val,
-    #         batch_size=self.params.batch_size,
-    #         num_workers=self.params.nworkers,
-    #         shuffle=False,
-    #         pin_memory=True,
-    #     )
+    def val_dataloader(self):
+        data_val = ImlData(self.params, False, train_ds=self.data_train)
+        return DataLoader(
+            dataset=data_val,
+            batch_size=self.params.batch_size,
+            num_workers=self.params.nworkers,
+            shuffle=False,
+            pin_memory=True,
+        )
 
     def test_dataloader(self):
         return DataLoader(
