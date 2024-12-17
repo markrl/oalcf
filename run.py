@@ -232,7 +232,8 @@ def main():
             scale = (len(data_module.data_train)-params.bootstrap)/(params.buffer_cap-params.bootstrap)
             patience = int(scale*(params.patience-params.patience_start) + params.patience_start)
             trainer.callbacks[0].patience = patience
-            cf_trainer.callbacks[0].patience = patience
+            if params.sim_type is not None:
+                cf_trainer.callbacks[0].patience = patience
             print(f'Early stopping patience: {patience}')
 
         # Handle DDM, budgeting, query selection, etc.
