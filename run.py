@@ -256,14 +256,14 @@ def main():
             budget += n_queries
             sm.est_class = 'target'
             sm.min_samples = params.min_al_samples
-            idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, budget)
+            idxs_dict, metrics_dict, al_accuracy = sm.select_queries(data_module, al_methods, module, budget)
             data_module.transfer_samples(idxs_dict[mm], module.model)
             print(f'Target queries: {len(idxs_dict[mm])}')
             budget -= len(idxs_dict[mm])
             n_al = len(idxs_dict[mm])
             sm.est_class = 'nontarget'
             sm.min_samples = np.maximum(0, sm.min_samples-len(idxs_dict[mm]))
-            idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, budget)
+            idxs_dict, metrics_dict, al_accuracy = sm.select_queries(data_module, al_methods, module, budget)
             has_drift = adwin.log_batch(data_module.test_dataloader(), module.model)
             print(adwin.drift_idxs)
             data_module.transfer_samples(idxs_dict[mm], module.model)
@@ -283,12 +283,12 @@ def main():
                 n_queries = budget_dict['warn']
             else:
                 n_queries = budget_dict['none']
-            idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, n_queries)
+            idxs_dict, metrics_dict, al_accuracy = sm.select_queries(data_module, al_methods, module, n_queries)
             data_module.transfer_samples(idxs_dict[mm], module.model)
             n_al = len(idxs_dict[mm])
         else:
             dist = None
-            idxs_dict, metrics_dict = sm.select_queries(data_module, al_methods, module, n_queries)
+            idxs_dict, metrics_dict, al_accuracy = sm.select_queries(data_module, al_methods, module, n_queries)
             has_drift = adwin.log_batch(data_module.test_dataloader(), module.model)
             print(adwin.drift_idxs)
             data_module.transfer_samples(idxs_dict[mm], module.model)
@@ -298,6 +298,8 @@ def main():
         data_module.drop_last = True if len(data_module)%params.batch_size==1 else False
         # Reset trainer for the new batch
         reset_trainer(trainer)
+        if cf_trainer.lightning_module is not None:
+            reset_trainer(cf_trainer)
         # Reload base model if resetting every batch
         if base_state_dict is not None:
             module.model.load_state_dict(base_state_dict)
@@ -314,7 +316,10 @@ def main():
             module.model.load_state_dict(base_state_dict)
         # Train model on adaptation pool
         fit_start_time = time.monotonic()
-        trainer.fit(module, data_module)
+        if al_accuracy == 1.0:
+            trainer.fit(module, data_module)
+        else:
+            cf_trainer.fit(module, data_module)
         total_training_time += time.monotonic()-fit_start_time
         total_training_epochs += trainer.fit_loop.epoch_progress.total.completed
         # Load model with from best epoch for this batch if indicated
@@ -355,8 +360,6 @@ def main():
                 cf_trainer.fit(module, data_module)
                 total_training_time += time.monotonic()-fit_start_time
                 total_training_epochs += cf_trainer.fit_loop.epoch_progress.total.completed
-                # if data_module.current_batch+1==52:
-                #     set_trace()
                 diagnostic_test_results = cf_trainer.test(module, data_module)
         else:
             cf_p, cf_n = 0, 0

@@ -117,7 +117,12 @@ class StrategyManager:
         
         if len(idxs_dict)==0:
             exit()
-        return idxs_dict, metrics_dict
+        kk = 'combo' if self.combo is not None else method_list[-1]
+        selected_logits = self.logits[idxs_dict[kk]]
+        selected_preds = torch.argmax(F.softmax(selected_logits, dim=-1), dim=-1)
+        selected_labels = torch.tensor([data_module.data_test.get_label(ii) for ii in idxs_dict[kk]])
+        acc = torch.mean(1.0*(selected_preds==selected_labels))
+        return idxs_dict, metrics_dict, acc
 
     def get_top_n(self, sorted_idxs, n_queries, data_module):
         if self.p_target is None:
@@ -191,7 +196,7 @@ class StrategyManager:
         feats = torch.cat([test_feats, train_feats], dim=0)
         data_module.drop_last = orig_drop
         return feats
-
+    
     def extract_grad_lens(self, data_module, module, criterion):
         model = module.model
         if hasattr(data_module, 'unlabeled_dataloader'):
