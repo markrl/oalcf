@@ -298,9 +298,6 @@ def main():
         data_module.drop_last = True if len(data_module)%params.batch_size==1 else False
         # Reset trainer for the new batch
         reset_trainer(trainer)
-        if params.sim_type is not None:
-            if cf_trainer.lightning_module is not None:
-                reset_trainer(cf_trainer)
         # Reload base model if resetting every batch
         if base_state_dict is not None:
             module.model.load_state_dict(base_state_dict)
@@ -317,10 +314,7 @@ def main():
             module.model.load_state_dict(base_state_dict)
         # Train model on adaptation pool
         fit_start_time = time.monotonic()
-        if al_accuracy == 1.0:
-            trainer.fit(module, data_module)
-        else:
-            cf_trainer.fit(module, data_module)
+        trainer.fit(module, data_module)
         total_training_time += time.monotonic()-fit_start_time
         total_training_epochs += trainer.fit_loop.epoch_progress.total.completed
         # Load model with from best epoch for this batch if indicated
