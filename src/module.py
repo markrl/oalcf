@@ -99,7 +99,7 @@ class VtdModule(LightningModule):
             self.val_scores.append(y_hat[:,1])
             self.val_labels.append(y)
             return
-        x,y,idxs = batch
+        x,y,_ = batch
         y_hat = self(x)[1]
         loss = self.criterion(y_hat,y)
         if self.params.cb_loss:
@@ -107,22 +107,12 @@ class VtdModule(LightningModule):
         self.log('val/loss', loss.item(), on_step=False, on_epoch=True)
         pred = torch.argmax(y_hat, dim=-1)
         acc = torch.mean(1.0*(pred==y))
-        self.log('val/acc', acc, on_step=False, on_epoch=True)
+        self.log('val/combo', loss.item()+1000*(acc<1.0), on_step=False, on_epoch=True)
 
         self.val_fps += torch.sum(torch.logical_and(y==0, pred==1))
         self.val_fns += torch.sum(torch.logical_and(y==1, pred==0))
         self.val_ps += torch.sum(y==1)
         self.val_ns += torch.sum(y==0)
-
-        if self.postquential:
-            fn_idxs = idxs[torch.where(torch.logical_and(pred==0, y==1))[0]]
-            fp_idxs = idxs[torch.where(torch.logical_and(pred==1, y==0))[0]]
-            with open('output/'+self.params.run_name+'/fn_list.txt', 'a') as f:
-                for idx in fn_idxs:
-                    f.write(str(idx.item()) + '\n')
-            with open('output/'+self.params.run_name+'/fp_list.txt', 'a') as f:
-                for idx in fp_idxs:
-                    f.write(str(idx.item()) + '\n')
 
     def on_validation_epoch_end(self):
         fnr = self.val_fns/self.val_ps if self.val_ps > 0 else 0.0
