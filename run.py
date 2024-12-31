@@ -134,7 +134,7 @@ def main():
         max_epochs=params.max_epochs,
         check_val_every_n_epoch=params.val_every_n_epochs,
         logger=False,
-        enable_checkpointing=False,
+        enable_checkpointing=params.load_best,
         log_every_n_steps=1,
         num_sanity_val_steps=1 if params.debug else 0,
     )
@@ -172,7 +172,7 @@ def main():
             max_epochs=params.max_epochs,
             check_val_every_n_epoch=params.val_every_n_epochs,
             logger=False,
-            enable_checkpointing=False,
+            enable_checkpointing=params.load_best,
             log_every_n_steps=1,
             num_sanity_val_steps=1 if params.debug else 0,
         )
@@ -218,7 +218,10 @@ def main():
         # Get prequential evaluation metrics from this batch
         module.postquential = False
         inference_start_time = time.monotonic()
-        test_results = trainer.test(module, data_module)
+        if params.load_best:
+            test_results = trainer.test(module, data_module, ckpt_path='best')
+        else:
+            test_results = trainer.test(module, data_module)
         total_inference_time += time.monotonic()-inference_start_time
         # Save results
         if not params.debug:
@@ -317,14 +320,14 @@ def main():
         trainer.fit(module, data_module)
         total_training_time += time.monotonic()-fit_start_time
         total_training_epochs += trainer.fit_loop.epoch_progress.total.completed
-        # Load model with from best epoch for this batch if indicated
-        if not params.debug and params.load_best:
-            module = VtdModule.load_from_checkpoint(ckpt_dir+'/best.ckpt')
         # Get postquential evaluation metrics from this batch
         if len(data_module.data_test) > 0:
             module.postquential = True
             inference_start_time = time.monotonic()
-            test_results = trainer.test(module, data_module)
+            if params.load_best:
+                test_results = trainer.test(module, data_module, ckpt_path='best')
+            else:
+                test_results = trainer.test(module, data_module)
             total_inference_time += time.monotonic()-inference_start_time
         else:
             test_results = None
