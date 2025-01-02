@@ -76,6 +76,8 @@ def get_params():
                         help='''list of active learning methods applied (separated by commas). 
                             `None` indicates no active learning.
                             options: `rand,ent,smax,necs`''')
+    parser.add_argument('--al_dict_path', type=str, default=None,
+                        help='path to copy AL queries')
     parser.add_argument('--n_queries', type=int, default=8,
                         help='number of active learning queries allotted per pass/batch')
     parser.add_argument('--epochs_per_pass', type=int, default=None,

@@ -61,6 +61,8 @@ def main():
                     params.feat_root = os.path.join(data_root, 'slv', corpus, 'ecapalang')
     # Initialize query selection strategy object
     sm = StrategyManager(params)
+    if params.al_dict_path is not None:
+        cp_dict = pickle.load(open(params.al_dict_path, 'rb'))
     # Initialize feedback simulator object
     cf_sim = FeedbackSimulator(params)
     # Initialize DDM
@@ -206,8 +208,12 @@ def main():
     pre_ps, pre_ns = [], []
     diag_fps, diag_fns = [], []
     diag_ps, diag_ns = [], []
+    al_dict = {}
     budget = 0
-    mm = 'combo' if params.combo is not None else al_methods[0]
+    if params.al_dict_path is not None:
+        mm = 'copy'
+    else:
+        mm = 'combo' if params.combo is not None else al_methods[0]
     # Loop through all batches
     while data_module.current_batch < data_module.n_batches:
         # Start clocks
@@ -291,12 +297,17 @@ def main():
             n_al = len(idxs_dict[mm])
         else:
             dist = None
-            idxs_dict, metrics_dict, al_accuracy = sm.select_queries(data_module, al_methods, module, n_queries)
+            if mm=='copy':
+                idxs_dict = {mm:cp_dict[data_module.current_batch]}
+                metrics_dict = None
+            else:
+                idxs_dict, metrics_dict, al_accuracy = sm.select_queries(data_module, al_methods, module, n_queries)
             has_drift = adwin.log_batch(data_module.test_dataloader(), module.model)
             print(adwin.drift_idxs)
             data_module.transfer_samples(idxs_dict[mm], module.model)
             n_al = len(idxs_dict[mm])
-
+        al_dict[data_module.current_batch] = idxs_dict[mm]
+        
         # Handle exception where a batch only contains 1 sample
         data_module.drop_last = True if len(data_module)%params.batch_size==1 else False
         # Reset trainer for the new batch
@@ -388,7 +399,7 @@ def main():
                 diag_fns.append(int(diagnostic_test_results[0]['test/fns']))
                 diag_ps.append(int(diagnostic_test_results[0]['test/ps']))
                 diag_ns.append(int(diagnostic_test_results[0]['test/ns']))
-            metric = None if len(al_methods)>1 or mm=='rand' else metrics_dict[mm]
+            metric = None if len(al_methods)>1 or mm=='rand' or mm=='copy' else metrics_dict[mm]
             model_zeros = 0
             for p in module.model.parameters():
                 model_zeros += torch.sum(p==0)
@@ -409,6 +420,7 @@ def main():
             else:
                 torch.save(module.model.state_dict(), os.path.join(out_dir, 'state_dict.pt'))
         data_module.save_active_files(os.path.join(out_dir, 'al_samples.txt'))
+    pickle.dump(al_dict, open(os.path.join(out_dir, 'al_dict.p'), 'wb'))
     return os.path.join(out_dir, 'time.txt')
 
 if __name__=='__main__':
