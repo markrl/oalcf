@@ -23,21 +23,25 @@ class ImlDataModule(LightningDataModule):
         elif 'LID' in params.feat_root.upper():
             self.ds = BaseLidData(params)
             self.task = 'lid'
-        self.data_train = ImlData(params, True, self.ds)
+        self.data_train_al = ImlData(params, True, self.ds)
+        self.data_train_alcf = ImlData(params, True, self.ds)
         self.data_test = ImlData(params, False, self.ds)
         self.current_batch = -1
         self.n_batches = int(len(self.ds)/params.samples_per_batch)
         self.drop_last = False
-        self.train_active_order = {}
+        self.train_active_order_al = {}
+        self.train_active_order_alcf = {}
         self.forget_n_batches = params.forget_n_batches
         self.use_gpu = params.gpus > 0 and torch.cuda.is_available()
+        self.al_only = False
 
     def setup(self, stage):
         return
 
     def train_dataloader(self):
+        data_train = self.data_train_al if self.al_only else self.data_train_alcf
         return DataLoader(
-            dataset=self.data_train,
+            dataset=data_train,
             batch_size=self.params.batch_size,
             num_workers=self.params.nworkers,
             shuffle=self.params.shuffle_train,
@@ -46,13 +50,14 @@ class ImlDataModule(LightningDataModule):
         )
 
     def val_dataloader(self):
-        data_val = ImlData(self.params, False, train_ds=self.data_train)
+        data_val = ImlData(self.params, False, 
+                           train_ds=self.data_train_al if self.al_only else self.data_train_alcf)
         return DataLoader(
             dataset=data_val,
             batch_size=self.params.batch_size,
             num_workers=self.params.nworkers,
             shuffle=False,
-            pin_memory=True,
+            # pin_memory=True,
         )
 
     def test_dataloader(self):
@@ -92,14 +97,18 @@ class ImlDataModule(LightningDataModule):
             idxs = nontarget_idxs + target_idxs
         else: # Construct bootstrap corpus from training data (out-of-domain)
             idxs = self.ds.load_external_bootstrap()
-            self.data_train.reset_idxs()
+            self.data_train_al.reset_idxs()
+            self.data_train_alcf.reset_idxs()
             self.data_test.reset_idxs()
-        self.data_train.activate_samples(idxs)
-        self.train_active_order[self.current_batch] = idxs
-        self.data_train.limit_data(self.data_test)
+        self.data_train_al.activate_samples(idxs)
+        self.data_train_alcf.activate_samples(idxs)
+        self.train_active_order_al[self.current_batch] = idxs
+        self.train_active_order_alcf[self.current_batch] = idxs
+        self.data_train_al.limit_data(self.data_test)
+        self.data_train_alcf.limit_data(self.data_test)
 
     def get_class_counts(self):
-        labels = torch.FloatTensor([self.ds.get_label(ii) for ii in self.data_train.active_idxs])
+        labels = torch.FloatTensor([self.ds.get_label(ii) for ii in self.data_train_alcf.active_idxs])
         n_target = torch.sum(labels)
         n_nontarget = len(labels)-n_target
         return n_target,n_nontarget
@@ -110,90 +119,53 @@ class ImlDataModule(LightningDataModule):
         p_nontarget = n_nontarget/(n_target+n_nontarget)
         return p_target,p_nontarget
 
-    def transfer_samples(self, idxs, model=None):
+    def transfer_samples(self, idxs, al_transfer=False):
         # Convert given inidices to base indices. This is the only function where this is necessary.
         idxs = [self.data_test.active_idxs[ii] for ii in idxs]
         # No need to add samples to the adaptation pool twice
         active_order = []
-        keys = list(self.train_active_order.keys())
+        keys = list(self.train_active_order_alcf.keys())
         keys.sort()
         for kk in keys:
-            active_order += self.train_active_order[kk]
-        idxs = [ii for ii in idxs if ii not in active_order]
-        active_order += idxs
-        if self.params.memory_buffer is None:
-            # Activate train, deactivate test
-            self.data_train.activate_samples(idxs)
-            if self.current_batch in self.train_active_order.keys():
-                self.train_active_order[self.current_batch] += idxs
-            else:
-                self.train_active_order[self.current_batch] = idxs
-        elif self.params.memory_buffer == 'ring':
-            # FIFO
-            self.data_train.activate_samples(idxs)
-            if self.current_batch in self.train_active_order.keys():
-                self.train_active_order[self.current_batch] += idxs
-            else:
-                self.train_active_order[self.current_batch] = idxs
-            if len(self.data_train.active_idxs) > self.params.buffer_cap:
-                rm_idxs = active_order[:-self.params.buffer_cap]
-                self.data_train.deactivate_samples(rm_idxs)
-                for kk in self.train_active_order:
-                    for ii in rm_idxs:
-                        if ii in self.train_active_order[kk]:
-                            self.train_active_order[kk].remove(ii)
-        elif self.params.memory_buffer == 'class':
-            # FIFO, keep class balance
-            self.data_train.activate_samples(idxs)
-            if self.current_batch in self.train_active_order.keys():
-                self.train_active_order[self.current_batch] += idxs
-            else:
-                self.train_active_order[self.current_batch] = idxs
-            if len(self.data_train.active_idxs) > self.params.buffer_cap:
-                labels = np.array([self.data_train.get_label(ii) for ii in range(len(self.data_train))])
-                active_order_target = np.array(active_order)[labels==1]
-                active_order_nontarget = np.array(active_order)[labels==0]
-                if len(active_order_target) > self.params.buffer_cap/2 and len(active_order_nontarget) > self.params.buffer_cap/2:
-                    rm_idxs = active_order_target[int(self.params.buffer_cap/2-len(active_order_target)):]
-                    rm_idxs = np.append(rm_idxs, active_order_nontarget[int(self.params.buffer_cap/2-len(active_order_nontarget)):])
-                elif len(active_order_nontarget) > self.params.buffer_cap/2:
-                    rm_idxs = active_order_nontarget[self.params.buffer_cap-len(active_order):]
-                elif len(active_order_target) > self.params.buffer_cap/2:
-                    rm_idxs = active_order_target[self.params.buffer_cap-len(active_order):]
-                self.data_train.deactivate_samples(rm_idxs)
-                for kk in self.train_active_order:
-                    for ii in rm_idxs:
-                        if ii in self.train_active_order[kk]:
-                            self.train_active_order[kk].remove(ii)
-        elif self.params.memory_buffer == 'confidence':
-            # Not FIFO, choose the least confident samples
-            self.data_train.activate_samples(idxs)
-            if self.current_batch in self.train_active_order.keys():
-                self.train_active_order[self.current_batch] += idxs
-            else:
-                self.train_active_order[self.current_batch] = idxs
-            if len(self.data_train.active_idxs) > self.params.buffer_cap:
-                confidence_scores = self.get_confidence(model)
-                sorted_idxs = np.argsort(confidence_scores)
-                rm_idxs = np.array(self.data_train.active_idxs)[sorted_idxs[self.params.buffer_cap-len(self.data_train.active_idxs):]]
-                self.data_train.deactivate_samples(rm_idxs)
-                for kk in self.train_active_order:
-                    for ii in rm_idxs:
-                        if ii in self.train_active_order[kk]:
-                            self.train_active_order[kk].remove(ii)
+            active_order += self.train_active_order_alcf[kk]
+        add_idxs = [ii for ii in idxs if ii not in active_order]
+        active_order += add_idxs
+        self.data_train_alcf.activate_samples(add_idxs)
+        if self.current_batch in self.train_active_order_alcf.keys():
+            self.train_active_order_alcf[self.current_batch] += add_idxs
         else:
-            print('Not a valid memory buffer')
-            exit()
-        self.data_train.limit_data(self.data_test)
+            self.train_active_order_alcf[self.current_batch] = add_idxs
+        self.data_train_alcf.limit_data(self.data_test)
+        if al_transfer:
+            # No need to add samples to the adaptation pool twice
+            active_order = []
+            keys = list(self.train_active_order_al.keys())
+            keys.sort()
+            for kk in keys:
+                active_order += self.train_active_order_al[kk]
+            add_idxs = [ii for ii in idxs if ii not in active_order]
+            active_order += add_idxs
+            self.data_train_alcf.activate_samples(add_idxs)
+            if self.current_batch in self.train_active_order_al.keys():
+                self.train_active_order_al[self.current_batch] += add_idxs
+            else:
+                self.train_active_order_al[self.current_batch] = add_idxs
+            self.data_train_al.limit_data(self.data_test)
 
     def forget_samples(self):
         if self.forget_n_batches is not None:
             batch_num = self.current_batch - self.forget_n_batches
-            orig_keys = list(self.train_active_order.keys())
+            orig_keys = list(self.train_active_order_alcf.keys())
             for kk in orig_keys:
                 if kk <= batch_num:
-                    idxs = self.train_active_order.pop(kk)
-                    self.data_train.deactivate_samples(idxs) 
+                    idxs = self.train_active_order_alcf.pop(kk)
+                    self.data_train_alcf.deactivate_samples(idxs) 
+
+            orig_keys = list(self.train_active_order_al.keys())
+            for kk in orig_keys:
+                if kk <= batch_num:
+                    idxs = self.train_active_order_al.pop(kk)
+                    self.data_train_al.deactivate_samples(idxs) 
 
     def next_batch(self):
         if self.current_batch>=self.n_batches-1:
@@ -206,18 +178,18 @@ class ImlDataModule(LightningDataModule):
                                                             (self.current_batch+self.ds.n_boot_batches+1)*self.params.samples_per_batch)])
 
         # Check for bootstrap samples
-        self.data_test.deactivate_samples(self.data_train.active_idxs)
+        self.data_test.deactivate_samples(self.data_train_al.active_idxs)
 
     def unlabeled_len(self):
         return len(self.data_test)
 
     def __len__(self):
-        return len(self.data_train)
+        return len(self.data_train_alcf)
 
     def save_active_files(self, path):
         file_list = [os.path.basename(self.ds.feat_files[int(ii/self.params.samples_per_batch)])[:-4].replace('_{}', '')
-                for ii in self.data_train.active_idxs]
-        sample_list = [str(ii%self.params.samples_per_batch) for ii in self.data_train.active_idxs]
+                for ii in self.data_train_alcf.active_idxs]
+        sample_list = [str(ii%self.params.samples_per_batch) for ii in self.data_train_alcf.active_idxs]
         lines = [f'{ff},{ss}' for ff,ss in zip(file_list, sample_list)]
         content = '\n'.join(lines) + '\n'
         with open(path, 'w') as f:
@@ -234,9 +206,9 @@ class ImlDataModule(LightningDataModule):
             return f'SESSION {self.current_batch}'
 
     def get_train_labels(self):
-        if len(self.data_train)==0:
+        if len(self.data_train_alcf)==0:
             return None
-        labels = [self.data_train.get_label(ii) for ii in np.arange(len(self.data_train))]
+        labels = [self.data_train_alcf.get_label(ii) for ii in np.arange(len(self.data_train_alcf))]
         return torch.LongTensor(labels)
 
     def get_test_labels(self):

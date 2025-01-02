@@ -93,8 +93,14 @@ def main():
     if not params.debug:
         out_file = os.path.join(out_dir, 'scores.csv')
         write_header(out_file, al_methods)
+      
+    # Initialize lightning data module and lightning module
+    data_module = ImlDataModule(params)
+    module = VtdModule(params)
+    if params.load_pretrained is not None:
+        module.model.load_state_dict(torch.load(params.load_pretrained))
     
-    # Set up trainer callbacks
+    # Set up AL trainer callbacks
     callbacks = []
     if params.load_best:
         ckpt_dir = 'checkpoints/'+params.run_name
@@ -103,7 +109,7 @@ def main():
         os.mkdir(ckpt_dir)
         callbacks.append(ModelCheckpoint(
             dirpath=ckpt_dir,
-            filename='best',
+            filename='best_al',
             monitor=params.monitor,
             mode=params.mode
         ))
@@ -118,14 +124,8 @@ def main():
         callbacks.append(IncOffsetCallback())
     elif params.pair_type=='neighbors':
         callbacks.append(ToggleNeighborsCallback())
-    
-    # Initialize lightning data module and lightning module
-    data_module = ImlDataModule(params)
-    module = VtdModule(params)
-    if params.load_pretrained is not None:
-        module.model.load_state_dict(torch.load(params.load_pretrained))
-    # Instantiate trainer
-    trainer = Trainer(
+    # Instantiate AL trainer
+    al_trainer = Trainer(
         callbacks=callbacks,
         fast_dev_run=params.debug,
         accelerator='gpu' if use_gpu else 'cpu',
@@ -139,43 +139,44 @@ def main():
         num_sanity_val_steps=1 if params.debug else 0,
     )
 
-    # if params.sim_type is not None:
-    #     cf_callbacks = []
-    #     if params.load_best:
-    #         ckpt_dir = 'checkpoints/'+params.run_name
-    #         if os.path.exists(ckpt_dir):
-    #             os.system(f'rm -rf {ckpt_dir}')
-    #         os.mkdir(ckpt_dir)
-    #         cf_callbacks.append(ModelCheckpoint(
-    #             dirpath=ckpt_dir,
-    #             filename='best',
-    #             monitor='val/acc',
-    #             mode='max'
-    #         ))
-    #     cf_callbacks.append(EarlyStopping(
-    #         monitor='val/acc',
-    #         mode='max',
-    #         patience=300,
-    #         min_delta=params.min_delta,
-    #         stopping_threshold=0.99999
-    #     ))
-    #     if params.pair_type=='offset':
-    #         cf_callbacks.append(IncOffsetCallback())
-    #     elif params.pair_type=='neighbors':
-    #         cf_callbacks.append(ToggleNeighborsCallback())
-    #     cf_trainer = Trainer(
-    #         callbacks=cf_callbacks,
-    #         fast_dev_run=params.debug,
-    #         accelerator='gpu' if use_gpu else 'cpu',
-    #         devices=[0] if use_gpu else 1,
-    #         overfit_batches=params.overfit_batches,
-    #         max_epochs=params.max_epochs,
-    #         check_val_every_n_epoch=params.val_every_n_epochs,
-    #         logger=False,
-    #         enable_checkpointing=params.load_best,
-    #         log_every_n_steps=1,
-    #         num_sanity_val_steps=1 if params.debug else 0,
-    #     )
+    # Set up CF trainer callbacks
+    callbacks = []
+    if params.load_best:
+        ckpt_dir = 'checkpoints/'+params.run_name
+        if os.path.exists(ckpt_dir):
+            os.system(f'rm -rf {ckpt_dir}')
+        os.mkdir(ckpt_dir)
+        callbacks.append(ModelCheckpoint(
+            dirpath=ckpt_dir,
+            filename='best_cf',
+            monitor=params.monitor,
+            mode=params.mode
+        ))
+    callbacks.append(EarlyStopping(
+        monitor=params.monitor,
+        mode=params.mode,
+        patience=params.patience if params.patience_start is None else params.patience_start,
+        min_delta=params.min_delta,
+        stopping_threshold=0.0 if params.mode=='min' else 0.99999
+    ))
+    if params.pair_type=='offset':
+        callbacks.append(IncOffsetCallback())
+    elif params.pair_type=='neighbors':
+        callbacks.append(ToggleNeighborsCallback())
+    # Instantiate CF trainer
+    cf_trainer = Trainer(
+        callbacks=callbacks,
+        fast_dev_run=params.debug,
+        accelerator='gpu' if use_gpu else 'cpu',
+        devices=[0] if use_gpu else 1,
+        overfit_batches=params.overfit_batches,
+        max_epochs=params.max_epochs,
+        check_val_every_n_epoch=params.val_every_n_epochs,
+        logger=False,
+        enable_checkpointing=params.load_best,
+        log_every_n_steps=1,
+        num_sanity_val_steps=1 if params.debug else 0,
+    )
 
     # Prepare base model if resetting weights every batch
     if params.reset_weights:
@@ -196,7 +197,8 @@ def main():
     if params.load_best:
         os.system(f'rm -rf {ckpt_dir}/best*.ckpt') 
     # Train on bootstrap corpus
-    trainer.fit(module, data_module)
+    cf_trainer.fit(module, data_module)
+    os.system(f'cp {ckpt_dir}/best_cf.ckpt {ckpt_dir}/best_al.ckpt')
 
     ### IML LOOP ###
     # Initialize metric tracking lists
@@ -206,7 +208,6 @@ def main():
     pre_ps, pre_ns = [], []
     diag_fps, diag_fns = [], []
     diag_ps, diag_ns = [], []
-    budget = 0
     mm = 'combo' if params.combo is not None else al_methods[0]
     # Loop through all batches
     while data_module.current_batch < data_module.n_batches:
@@ -217,11 +218,12 @@ def main():
         print(f'STARTING {data_module.get_current_session_name()} ({data_module.current_batch+1}/{data_module.n_batches})')
         # Get prequential evaluation metrics from this batch
         module.postquential = False
+        data_module.postquential = False
         inference_start_time = time.monotonic()
         if params.load_best:
-            test_results = trainer.test(module, data_module, ckpt_path='best')
+            test_results = cf_trainer.test(module, data_module, ckpt_path='best')
         else:
-            test_results = trainer.test(module, data_module)
+            test_results = cf_trainer.test(module, data_module)
         total_inference_time += time.monotonic()-inference_start_time
         # Save results
         if not params.debug:
@@ -234,9 +236,8 @@ def main():
         if params.patience_start is not None:  
             scale = (len(data_module.data_train)-params.bootstrap)/(params.buffer_cap-params.bootstrap)
             patience = int(scale*(params.patience-params.patience_start) + params.patience_start)
-            trainer.callbacks[0].patience = patience
-            # if params.sim_type is not None:
-            #     cf_trainer.callbacks[0].patience = patience
+            cf_trainer.callbacks[0].patience = patience
+            al_trainer.callbacks[0].patience = patience
             print(f'Early stopping patience: {patience}')
 
         # Handle DDM, budgeting, query selection, etc.
@@ -254,56 +255,26 @@ def main():
         else:
             n_queries = params.n_queries
 
-        if params.separate_class_al:
-            dist = None
-            budget += n_queries
-            sm.est_class = 'target'
-            sm.min_samples = params.min_al_samples
-            idxs_dict, metrics_dict, al_accuracy = sm.select_queries(data_module, al_methods, module, budget)
-            data_module.transfer_samples(idxs_dict[mm], module.model)
-            print(f'Target queries: {len(idxs_dict[mm])}')
-            budget -= len(idxs_dict[mm])
-            n_al = len(idxs_dict[mm])
-            sm.est_class = 'nontarget'
-            sm.min_samples = np.maximum(0, sm.min_samples-len(idxs_dict[mm]))
-            idxs_dict, metrics_dict, al_accuracy = sm.select_queries(data_module, al_methods, module, budget)
-            has_drift = adwin.log_batch(data_module.test_dataloader(), module.model)
-            print(adwin.drift_idxs)
-            data_module.transfer_samples(idxs_dict[mm], module.model)
-            print(f'Nontarget queries: {len(idxs_dict[mm])}')
-            p_t, p_n = data_module.get_class_balance()
-            print(f'P_t: {p_t:.4f}')
-            budget -= len(idxs_dict[mm])
-            n_al += len(idxs_dict[mm])
-            print(f'Remaining budget: {budget}')
-        elif params.drift_budget is not None:
-            dist = None
-            warn_drift = warn_ddm.log_batch(data_module.test_dataloader(), module.model)
-            has_drift = true_ddm.log_batch(data_module.test_dataloader(), module.model)
-            if has_drift:
-                n_queries = budget_dict['detect']
-            elif warn_drift:
-                n_queries = budget_dict['warn']
-            else:
-                n_queries = budget_dict['none']
-            idxs_dict, metrics_dict, al_accuracy = sm.select_queries(data_module, al_methods, module, n_queries)
-            data_module.transfer_samples(idxs_dict[mm], module.model)
-            n_al = len(idxs_dict[mm])
-        else:
-            dist = None
-            idxs_dict, metrics_dict, al_accuracy = sm.select_queries(data_module, al_methods, module, n_queries)
-            has_drift = adwin.log_batch(data_module.test_dataloader(), module.model)
-            print(adwin.drift_idxs)
-            data_module.transfer_samples(idxs_dict[mm], module.model)
-            n_al = len(idxs_dict[mm])
+        data_module.al_only = True
+        module.postquential = False
+        module.load_from_checkpoint(f'{ckpt_dir}/best_al.ckpt')
+        os.system(f'rm -rf {ckpt_dir}/best_al*.ckpt') 
+        al_trainer.fit(module, data_module)
+        module.load_from_checkpoint(f'{ckpt_dir}/best_al.ckpt')
+        dist = None
+        idxs_dict, metrics_dict, al_accuracy = sm.select_queries(data_module, al_methods, module, n_queries)
+        has_drift = adwin.log_batch(data_module.test_dataloader(), module.model)
+        print(adwin.drift_idxs)
+        data_module.transfer_samples(idxs_dict[mm], al_transfer=True)
+        n_al = len(idxs_dict[mm])
 
         # Handle exception where a batch only contains 1 sample
         data_module.drop_last = True if len(data_module)%params.batch_size==1 else False
         # Reset trainer for the new batch
-        reset_trainer(trainer)
-        # Reload base model if resetting every batch
-        if base_state_dict is not None:
-            module.model.load_state_dict(base_state_dict)
+        if cf_trainer.lightning_module is not None:
+            reset_trainer(cf_trainer)
+        if al_trainer.lightning_module is not None:
+            reset_trainer(al_trainer)
         # Update class weighting if indicated
         if params.cb_loss:
             update_counts(module, data_module)
@@ -311,23 +282,26 @@ def main():
             update_xent(module, data_module, params.auto_mult)
         # Delete old checkpoints
         if params.load_best:
-            os.system(f'rm -rf {ckpt_dir}/best*.ckpt')
+            os.system(f'rm -rf {ckpt_dir}/best_cf*.ckpt')
         # Reset weights, if indicated
         if params.reset_weights:
             module.model.load_state_dict(base_state_dict)
+        else:
+            module.model.load_state_dict(module.model.state_dict())
         # Train model on adaptation pool
+        module.postquential = True
+        data_module.al_only = False
         fit_start_time = time.monotonic()
-        trainer.fit(module, data_module)
+        cf_trainer.fit(module, data_module)
         total_training_time += time.monotonic()-fit_start_time
-        total_training_epochs += trainer.fit_loop.epoch_progress.total.completed
+        total_training_epochs += cf_trainer.fit_loop.epoch_progress.total.completed
         # Get postquential evaluation metrics from this batch
         if len(data_module.data_test) > 0:
-            module.postquential = True
             inference_start_time = time.monotonic()
             if params.load_best:
-                test_results = trainer.test(module, data_module, ckpt_path='best')
+                test_results = cf_trainer.test(module, data_module, ckpt_path='best')
             else:
-                test_results = trainer.test(module, data_module)
+                test_results = cf_trainer.test(module, data_module)
             total_inference_time += time.monotonic()-inference_start_time
         else:
             test_results = None
@@ -335,10 +309,12 @@ def main():
         cf_idxs = cf_sim.simulate(data_module, module)
         n_cf = len(cf_idxs)
         if len(cf_idxs) > 0:
+            module.postquential = False
+            data_module.postquential = False
             cf_classes = [data_module.data_test[ii][1] for ii in cf_idxs]
             cf_p = int(np.sum(cf_classes))
             cf_n = n_cf - cf_p
-            data_module.transfer_samples(cf_idxs, module.model)
+            data_module.transfer_samples(cf_idxs, al_transfer=False)
             if base_state_dict is None:
                 # Handle exception where a batch only contains 1 sample
                 data_module.drop_last = True if len(data_module)%params.batch_size==1 else False
@@ -348,21 +324,19 @@ def main():
                 elif params.auto_weight and params.class_loss=='xent':
                     update_xent(module, data_module, params.auto_mult)
                 # Reset trainer for the new batch
-                # if cf_trainer.lightning_module is not None:
-                #     reset_trainer(cf_trainer)
-                reset_trainer(trainer)
+                if cf_trainer.lightning_module is not None:
+                    reset_trainer(cf_trainer)
+                if al_trainer.lightning_module is not None:
+                    reset_trainer(al_trainer)
                 # Reset weights, if indicated
                 if params.reset_weights:
                     module.model.load_state_dict(base_state_dict)
                 # Train model on adaptation pool
                 fit_start_time = time.monotonic()
-                # cf_trainer.fit(module, data_module)
-                trainer.fit(module, data_module)
+                cf_trainer.fit(module, data_module)
                 total_training_time += time.monotonic()-fit_start_time
-                # total_training_epochs += cf_trainer.fit_loop.epoch_progress.total.completed
-                # diagnostic_test_results = cf_trainer.test(module, data_module)
-                total_training_epochs += trainer.fit_loop.epoch_progress.total.completed
-                diagnostic_test_results = trainer.test(module, data_module)
+                total_training_epochs += cf_trainer.fit_loop.epoch_progress.total.completed
+                diagnostic_test_results = cf_trainer.test(module, data_module)
         else:
             cf_p, cf_n = 0, 0
             diagnostic_test_results = None
@@ -394,11 +368,12 @@ def main():
                 model_zeros += torch.sum(p==0)
             write_session(out_file, data_module.current_batch, test_results, 
                           (pre_fps,pre_fns,pre_ps,pre_ns,fps,fns,ps,ns,diag_fps,diag_fns,diag_ps,diag_ns), 
-                          data_module.get_class_balance(), len(data_module.data_train.active_idxs), metric, dist, n_al, cf_p, cf_n, 
+                          data_module.get_class_balance(), len(data_module.data_train_alcf.active_idxs), metric, dist, n_al, cf_p, cf_n, 
                           has_drift, (time.monotonic()-batch_start_time, total_training_time, total_inference_time), 
                           total_training_epochs, model_zeros)
         # Prepare transition to next batch
         module.n_train = len(data_module)
+        module.n_train = len(data_module.data_train_al)
         data_module.next_batch()
         data_module.forget_samples()
     # Save final model and AL samples
