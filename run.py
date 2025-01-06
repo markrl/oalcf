@@ -141,44 +141,6 @@ def main():
         num_sanity_val_steps=1 if params.debug else 0,
     )
 
-    # if params.sim_type is not None:
-    #     cf_callbacks = []
-    #     if params.load_best:
-    #         ckpt_dir = 'checkpoints/'+params.run_name
-    #         if os.path.exists(ckpt_dir):
-    #             os.system(f'rm -rf {ckpt_dir}')
-    #         os.mkdir(ckpt_dir)
-    #         cf_callbacks.append(ModelCheckpoint(
-    #             dirpath=ckpt_dir,
-    #             filename='best',
-    #             monitor='val/acc',
-    #             mode='max'
-    #         ))
-    #     cf_callbacks.append(EarlyStopping(
-    #         monitor='val/acc',
-    #         mode='max',
-    #         patience=300,
-    #         min_delta=params.min_delta,
-    #         stopping_threshold=0.99999
-    #     ))
-    #     if params.pair_type=='offset':
-    #         cf_callbacks.append(IncOffsetCallback())
-    #     elif params.pair_type=='neighbors':
-    #         cf_callbacks.append(ToggleNeighborsCallback())
-    #     cf_trainer = Trainer(
-    #         callbacks=cf_callbacks,
-    #         fast_dev_run=params.debug,
-    #         accelerator='gpu' if use_gpu else 'cpu',
-    #         devices=[0] if use_gpu else 1,
-    #         overfit_batches=params.overfit_batches,
-    #         max_epochs=params.max_epochs,
-    #         check_val_every_n_epoch=params.val_every_n_epochs,
-    #         logger=False,
-    #         enable_checkpointing=params.load_best,
-    #         log_every_n_steps=1,
-    #         num_sanity_val_steps=1 if params.debug else 0,
-    #     )
-
     # Prepare base model if resetting weights every batch
     if params.reset_weights:
         base_state_dict = module.model.state_dict()
@@ -241,8 +203,6 @@ def main():
             scale = (len(data_module.data_train)-params.bootstrap)/(params.buffer_cap-params.bootstrap)
             patience = int(scale*(params.patience-params.patience_start) + params.patience_start)
             trainer.callbacks[0].patience = patience
-            # if params.sim_type is not None:
-            #     cf_trainer.callbacks[0].patience = patience
             print(f'Early stopping patience: {patience}')
 
         # Handle DDM, budgeting, query selection, etc.
@@ -359,21 +319,19 @@ def main():
                 elif params.auto_weight and params.class_loss=='xent':
                     update_xent(module, data_module, params.auto_mult)
                 # Reset trainer for the new batch
-                # if cf_trainer.lightning_module is not None:
-                #     reset_trainer(cf_trainer)
                 reset_trainer(trainer)
                 # Reset weights, if indicated
                 if params.reset_weights:
                     module.model.load_state_dict(base_state_dict)
                 # Train model on adaptation pool
                 fit_start_time = time.monotonic()
-                # cf_trainer.fit(module, data_module)
                 trainer.fit(module, data_module)
                 total_training_time += time.monotonic()-fit_start_time
-                # total_training_epochs += cf_trainer.fit_loop.epoch_progress.total.completed
-                # diagnostic_test_results = cf_trainer.test(module, data_module)
                 total_training_epochs += trainer.fit_loop.epoch_progress.total.completed
-                diagnostic_test_results = trainer.test(module, data_module)
+                if params.load_best:
+                    diagnostic_test_results = trainer.test(module, data_module, ckpt_path='best')
+                else:
+                    diagnostic_test_results = trainer.test(module, data_module)
         else:
             cf_p, cf_n = 0, 0
             diagnostic_test_results = None
