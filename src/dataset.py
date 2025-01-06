@@ -145,7 +145,7 @@ class ImlDataModule(LightningDataModule):
                 active_order += self.train_active_order_al[kk]
             add_idxs = [ii for ii in idxs if ii not in active_order]
             active_order += add_idxs
-            self.data_train_alcf.activate_samples(add_idxs)
+            self.data_train_al.activate_samples(add_idxs)
             if self.current_batch in self.train_active_order_al.keys():
                 self.train_active_order_al[self.current_batch] += add_idxs
             else:
@@ -184,7 +184,7 @@ class ImlDataModule(LightningDataModule):
         return len(self.data_test)
 
     def __len__(self):
-        return len(self.data_train_alcf)
+        return len(self.data_train_al) if self.al_only else len(self.data_train_alcf)
 
     def save_active_files(self, path):
         file_list = [os.path.basename(self.ds.feat_files[int(ii/self.params.samples_per_batch)])[:-4].replace('_{}', '')

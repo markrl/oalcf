@@ -197,8 +197,7 @@ def main():
     if params.load_best:
         os.system(f'rm -rf {ckpt_dir}/best*.ckpt') 
     # Train on bootstrap corpus
-    cf_trainer.fit(module, data_module)
-    os.system(f'cp {ckpt_dir}/best_cf.ckpt {ckpt_dir}/best_al.ckpt')
+    al_trainer.fit(module, data_module)
 
     ### IML LOOP ###
     # Initialize metric tracking lists
@@ -206,6 +205,8 @@ def main():
     fps, fns = [], []
     pre_fps, pre_fns = [], []
     pre_ps, pre_ns = [], []
+    cf_ps, cf_ns = [], []
+    cf_fps, cf_fns = [], []
     diag_fps, diag_fns = [], []
     diag_ps, diag_ns = [], []
     mm = 'combo' if params.combo is not None else al_methods[0]
@@ -216,14 +217,16 @@ def main():
         total_inference_time, total_training_time, total_training_epochs = 0, 0, 0
         # Print current session name and number
         print(f'STARTING {data_module.get_current_session_name()} ({data_module.current_batch+1}/{data_module.n_batches})')
-        # Get prequential evaluation metrics from this batch
+        # Get prequential evaluation metrics from this batch (OAL-only model)
+        module.load_from_checkpoint(os.path.join(ckpt_dir, 'best_al.ckpt'))
+        os.system(f'cp {ckpt_dir}/best_al.ckpt {ckpt_dir}/best_pre.ckpt')
         module.postquential = False
-        data_module.postquential = False
+        data_module.al_only = True
         inference_start_time = time.monotonic()
         if params.load_best:
-            test_results = cf_trainer.test(module, data_module, ckpt_path='best')
+            test_results = al_trainer.test(module, data_module, ckpt_path='best')
         else:
-            test_results = cf_trainer.test(module, data_module)
+            test_results = al_trainer.test(module, data_module)
         total_inference_time += time.monotonic()-inference_start_time
         # Save results
         if not params.debug:
@@ -255,12 +258,9 @@ def main():
         else:
             n_queries = params.n_queries
 
+        ### OAL ###
         data_module.al_only = True
         module.postquential = False
-        module.load_from_checkpoint(f'{ckpt_dir}/best_al.ckpt')
-        os.system(f'rm -rf {ckpt_dir}/best_al*.ckpt') 
-        al_trainer.fit(module, data_module)
-        module.load_from_checkpoint(f'{ckpt_dir}/best_al.ckpt')
         dist = None
         idxs_dict, metrics_dict, al_accuracy = sm.select_queries(data_module, al_methods, module, n_queries)
         has_drift = adwin.log_batch(data_module.test_dataloader(), module.model)
@@ -271,10 +271,57 @@ def main():
         # Handle exception where a batch only contains 1 sample
         data_module.drop_last = True if len(data_module)%params.batch_size==1 else False
         # Reset trainer for the new batch
-        if cf_trainer.lightning_module is not None:
-            reset_trainer(cf_trainer)
         if al_trainer.lightning_module is not None:
             reset_trainer(al_trainer)
+        # Update class weighting if indicated
+        if params.cb_loss:
+            update_counts(module, data_module)
+        elif params.auto_weight and params.class_loss=='xent':
+            update_xent(module, data_module, params.auto_mult)
+        # Delete old checkpoints
+        if params.load_best:
+            os.system(f'rm -rf {ckpt_dir}/best_al*.ckpt')
+        # Reset weights, if indicated
+        if params.reset_weights:
+            module.model.load_state_dict(base_state_dict)
+        # Train OAL model on OAL-only adaptation pool
+        module.postquential = True
+        fit_start_time = time.monotonic()
+        al_trainer.fit(module, data_module)
+        total_training_time += time.monotonic()-fit_start_time
+        total_training_epochs += al_trainer.fit_loop.epoch_progress.total.completed
+        # Get postquential evaluation metrics from this batch
+        if len(data_module.data_test) > 0:
+            inference_start_time = time.monotonic()
+            if params.load_best:
+                test_results = al_trainer.test(module, data_module, ckpt_path='best')
+            else:
+                test_results = al_trainer.test(module, data_module)
+            total_inference_time += time.monotonic()-inference_start_time
+        else:
+            test_results = None
+        # Store results
+        if not params.debug:
+            if test_results is None:
+                fps.append(0)
+                fns.append(0)
+                ps.append(0)
+                ns.append(0)
+            else:
+                fps.append(int(test_results[0]['test/fps']))
+                fns.append(int(test_results[0]['test/fns']))
+                ps.append(int(test_results[0]['test/ps']))
+                ns.append(int(test_results[0]['test/ns']))
+
+        ### OAL-CF ###
+        module.postquential = False
+        data_module.al_only = False
+        # Handle exception where a batch only contains 1 sample
+        data_module.drop_last = True if len(data_module)%params.batch_size==1 else False
+        # Reset trainer for the new batch
+        module.load_from_checkpoint(f'{ckpt_dir}/best_al.ckpt') # Use model from after AL training or beginning of batch?
+        if cf_trainer.lightning_module is not None:
+            reset_trainer(cf_trainer)
         # Update class weighting if indicated
         if params.cb_loss:
             update_counts(module, data_module)
@@ -286,16 +333,12 @@ def main():
         # Reset weights, if indicated
         if params.reset_weights:
             module.model.load_state_dict(base_state_dict)
-        else:
-            module.model.load_state_dict(module.model.state_dict())
-        # Train model on adaptation pool
-        module.postquential = True
-        data_module.al_only = False
+        # Train OAL-CF model on full adaptation pool
         fit_start_time = time.monotonic()
         cf_trainer.fit(module, data_module)
         total_training_time += time.monotonic()-fit_start_time
         total_training_epochs += cf_trainer.fit_loop.epoch_progress.total.completed
-        # Get postquential evaluation metrics from this batch
+        # Get OAL-CF evaluation metrics from this batch
         if len(data_module.data_test) > 0:
             inference_start_time = time.monotonic()
             if params.load_best:
@@ -305,12 +348,23 @@ def main():
             total_inference_time += time.monotonic()-inference_start_time
         else:
             test_results = None
+        # Store results
+        if not params.debug:
+            if test_results is None:
+                cf_fps.append(0)
+                cf_fns.append(0)
+                cf_ps.append(0)
+                cf_ns.append(0)
+            else:
+                cf_fps.append(int(test_results[0]['test/fps']))
+                cf_fns.append(int(test_results[0]['test/fns']))
+                cf_ps.append(int(test_results[0]['test/ps']))
+                cf_ns.append(int(test_results[0]['test/ns']))
+        
         # Get corrective feedback
         cf_idxs = cf_sim.simulate(data_module, module)
         n_cf = len(cf_idxs)
         if len(cf_idxs) > 0:
-            module.postquential = False
-            data_module.postquential = False
             cf_classes = [data_module.data_test[ii][1] for ii in cf_idxs]
             cf_p = int(np.sum(cf_classes))
             cf_n = n_cf - cf_p
@@ -326,8 +380,6 @@ def main():
                 # Reset trainer for the new batch
                 if cf_trainer.lightning_module is not None:
                     reset_trainer(cf_trainer)
-                if al_trainer.lightning_module is not None:
-                    reset_trainer(al_trainer)
                 # Reset weights, if indicated
                 if params.reset_weights:
                     module.model.load_state_dict(base_state_dict)
@@ -336,22 +388,12 @@ def main():
                 cf_trainer.fit(module, data_module)
                 total_training_time += time.monotonic()-fit_start_time
                 total_training_epochs += cf_trainer.fit_loop.epoch_progress.total.completed
-                diagnostic_test_results = cf_trainer.test(module, data_module)
+                diagnostic_test_results = cf_trainer.test(module, data_module, ckpt_path='best')
         else:
             cf_p, cf_n = 0, 0
             diagnostic_test_results = None
         # Write results to file
         if not params.debug:
-            if test_results is None:
-                fps.append(0)
-                fns.append(0)
-                ps.append(0)
-                ns.append(0)
-            else:
-                fps.append(int(test_results[0]['test/fps']))
-                fns.append(int(test_results[0]['test/fns']))
-                ps.append(int(test_results[0]['test/ps']))
-                ns.append(int(test_results[0]['test/ns']))
             if diagnostic_test_results is None:
                 diag_fps.append(0)
                 diag_fns.append(0)
@@ -367,10 +409,10 @@ def main():
             for p in module.model.parameters():
                 model_zeros += torch.sum(p==0)
             write_session(out_file, data_module.current_batch, test_results, 
-                          (pre_fps,pre_fns,pre_ps,pre_ns,fps,fns,ps,ns,diag_fps,diag_fns,diag_ps,diag_ns), 
-                          data_module.get_class_balance(), len(data_module.data_train_alcf.active_idxs), metric, dist, n_al, cf_p, cf_n, 
-                          has_drift, (time.monotonic()-batch_start_time, total_training_time, total_inference_time), 
-                          total_training_epochs, model_zeros)
+                (pre_fps,pre_fns,pre_ps,pre_ns,fps,fns,ps,ns,cf_fps,cf_fns,cf_ps,cf_ns,diag_fps,diag_fns,diag_ps,diag_ns), 
+                data_module.get_class_balance(), len(data_module.data_train_alcf.active_idxs), metric, dist, n_al, cf_p, cf_n, 
+                has_drift, (time.monotonic()-batch_start_time, total_training_time, total_inference_time), 
+                total_training_epochs, model_zeros)
         # Prepare transition to next batch
         module.n_train = len(data_module)
         module.n_train = len(data_module.data_train_al)

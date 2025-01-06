@@ -173,7 +173,7 @@ def update_counts(module, data_module):
 
 def write_header(out_file, al_methods, ddm_exists=False):
     f = open(out_file, 'w')
-    f.write('pass,time,train_time,train_epochs,inference_time,pre_dcf,pre_fnr,pre_fpr,dcf,fnr,fpr,pre_ns,pre_ps,ns,ps,pre_fns,pre_fps,fns,fps,diag_fns,diag_fps,p_target,p_nontarget,n_samples,cum_pre_dcf,cum_dcf,n_al,cf_tp,cf_fp,drift,model_zeros')
+    f.write('pass,time,train_time,train_epochs,inference_time,pre_dcf,pre_fnr,pre_fpr,dcf,fnr,fpr,pre_ns,pre_ps,ns,ps,pre_fns,pre_fps,fns,fps,cf_fns,cf_fps,diag_fns,diag_fps,p_target,p_nontarget,n_samples,cum_pre_dcf,cum_dcf,n_al,cf_tp,cf_fp,drift,model_zeros')
     if len(al_methods)==1 and al_methods[0]!='rand':
         f.write(',metric')
     f.write('\n')
@@ -182,7 +182,7 @@ def write_header(out_file, al_methods, ddm_exists=False):
 def write_session(out_file, current_batch, test_results, error_counts, class_balance, n_samples, metric=None, 
                   drift_dist=None, n_al=0, cf_p=0, cf_n=0, has_drift=0, times=(0,0,0), epochs=0, model_zeros=0):
     elapsed_time, training_time, inference_time = times
-    pre_fps, pre_fns, pre_ps, pre_ns, fps, fns, ps, ns, diag_fps, diag_fns, diag_ps, diag_ns = error_counts
+    pre_fps, pre_fns, pre_ps, pre_ns, fps, fns, ps, ns, cf_fps, cf_fns, cf_ps, cf_ns, diag_fps, diag_fns, diag_ps, diag_ns = error_counts
     p_target, p_nontarget = class_balance
     f = open(out_file, 'a')
     f.write(f'{current_batch},{elapsed_time:.2f},{training_time:.2f},{epochs:d},{inference_time:.2f}')
@@ -199,7 +199,7 @@ def write_session(out_file, current_batch, test_results, error_counts, class_bal
     f.write(f',{dcf:.4f},{fnr:.4f},{fpr:.4f}')
     f.write(f',{pre_ns[-1]:d},{pre_ps[-1]:d}')
     f.write(f',{ns[-1]:d},{ps[-1]:d},{pre_fns[-1]:d},{pre_fps[-1]:d},{fns[-1]:d},{fps[-1]:d}')
-    f.write(f',{diag_fns[-1]:d},{diag_fps[-1]:d}')
+    f.write(f',{cf_fns[-1]:d},{cf_fps[-1]:d},{diag_fns[-1]:d},{diag_fps[-1]:d}')
     f.write(f',{p_target:.4f},{p_nontarget:.4f},{n_samples:d}')
     pre_fnr = torch.sum(torch.LongTensor(pre_fns))/torch.sum(torch.LongTensor(ps)) if torch.sum(torch.LongTensor(ps))>0 else 0
     pre_fpr = torch.sum(torch.LongTensor(pre_fps))/torch.sum(torch.LongTensor(ns)) if torch.sum(torch.LongTensor(ns))>0 else 0
