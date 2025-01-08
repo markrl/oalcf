@@ -179,7 +179,7 @@ def write_header(out_file, al_methods, ddm_exists=False):
     f.write('\n')
     f.close()
 
-def write_session(out_file, current_batch, test_results, error_counts, class_balance, n_samples, metric=None, 
+def write_session(out_file, current_batch, error_counts, class_balance, n_samples, metric=None, 
                   drift_dist=None, n_al=0, cf_p=0, cf_n=0, has_drift=0, times=(0,0,0), epochs=0, model_zeros=0):
     elapsed_time, training_time, inference_time = times
     pre_fps, pre_fns, pre_ps, pre_ns, fps, fns, ps, ns, cf_fps, cf_fns, cf_ps, cf_ns, diag_fps, diag_fns, diag_ps, diag_ns = error_counts
@@ -189,12 +189,9 @@ def write_session(out_file, current_batch, test_results, error_counts, class_bal
     pre_fnr = pre_fns[-1]/pre_ps[-1] if pre_ps[-1]>0 else 0
     pre_fpr = pre_fps[-1]/pre_ns[-1] if pre_ns[-1]>0 else 0
     pre_dcf = 0.75*pre_fnr + 0.25*pre_fpr
-    if test_results is not None:
-        dcf = test_results[0]['test/dcf']
-        fnr = test_results[0]['test/fnr']
-        fpr = test_results[0]['test/fpr']
-    else:
-        dcf, fnr, fpr = 0, 0, 0
+    fnr = fns[-1]/ps[-1] if ps[-1]>0 else 0
+    fpr = fps[-1]/ns[-1] if ns[-1]>0 else 0
+    dcf = 0.75*fnr + 0.25*fpr
     f.write(f',{pre_dcf:.4f},{pre_fnr:.4f},{pre_fpr:.4f}')
     f.write(f',{dcf:.4f},{fnr:.4f},{fpr:.4f}')
     f.write(f',{pre_ns[-1]:d},{pre_ps[-1]:d}')
