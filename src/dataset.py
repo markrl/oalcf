@@ -25,6 +25,7 @@ class ImlDataModule(LightningDataModule):
             self.task = 'lid'
         self.data_train_al = ImlData(params, True, self.ds)
         self.data_train_alcf = ImlData(params, True, self.ds)
+        self.data_train_recent = ImlData(params, True, self.ds)
         self.data_test = ImlData(params, False, self.ds)
         self.current_batch = -1
         self.n_batches = int(len(self.ds)/params.samples_per_batch)
@@ -34,12 +35,15 @@ class ImlDataModule(LightningDataModule):
         self.forget_n_batches = params.forget_n_batches
         self.use_gpu = params.gpus > 0 and torch.cuda.is_available()
         self.al_only = False
+        self.recent_only = False
 
     def setup(self, stage):
         return
 
     def train_dataloader(self):
         data_train = self.data_train_al if self.al_only else self.data_train_alcf
+        if self.recent_only:
+            data_train = self.data_train_recent
         return DataLoader(
             dataset=data_train,
             batch_size=self.params.batch_size,
@@ -50,8 +54,11 @@ class ImlDataModule(LightningDataModule):
         )
 
     def val_dataloader(self):
-        data_val = ImlData(self.params, False, 
-                           train_ds=self.data_train_al if self.al_only else self.data_train_alcf)
+        if self.recent_only:
+            train_ds = self.data_train_recent
+        else:
+            train_ds = self.data_train_al if self.al_only else self.data_train_alcf
+        data_val = ImlData(self.params, False, train_ds=train_ds)
         return DataLoader(
             dataset=data_val,
             batch_size=self.params.batch_size,
@@ -99,13 +106,16 @@ class ImlDataModule(LightningDataModule):
             idxs = self.ds.load_external_bootstrap()
             self.data_train_al.reset_idxs()
             self.data_train_alcf.reset_idxs()
+            self.data_train_recent.reset_idxs()
             self.data_test.reset_idxs()
         self.data_train_al.activate_samples(idxs)
         self.data_train_alcf.activate_samples(idxs)
+        self.data_train_recent.activate_samples(idxs)
         self.train_active_order_al[self.current_batch] = idxs
         self.train_active_order_alcf[self.current_batch] = idxs
         self.data_train_al.limit_data(self.data_test)
         self.data_train_alcf.limit_data(self.data_test)
+        self.data_train_recent.limit_data(self.data_test)
 
     def get_class_counts(self):
         labels = torch.FloatTensor([self.ds.get_label(ii) for ii in self.data_train_alcf.active_idxs])
@@ -136,6 +146,9 @@ class ImlDataModule(LightningDataModule):
         else:
             self.train_active_order_alcf[self.current_batch] = add_idxs
         self.data_train_alcf.limit_data(self.data_test)
+        alcf_idxs = [ii for ii in range(len(self.data_train_alcf.active_idxs)-len(add_idxs), len(self.data_train_alcf.active_idxs))]
+        self.data_train_recent.deactivate_all()
+        self.data_train_recent.activate_samples(add_idxs)
         if al_transfer:
             # No need to add samples to the adaptation pool twice
             active_order = []
@@ -151,6 +164,10 @@ class ImlDataModule(LightningDataModule):
             else:
                 self.train_active_order_al[self.current_batch] = add_idxs
             self.data_train_al.limit_data(self.data_test)
+            al_only_idxs = [ii for ii in range(len(self.data_train_al.active_idxs)-len(add_idxs), len(self.data_train_al.active_idxs))]
+            return al_only_idxs, alcf_idxs
+        else:
+            return alcf_idxs
 
     def forget_samples(self):
         if self.forget_n_batches is not None:
@@ -184,7 +201,10 @@ class ImlDataModule(LightningDataModule):
         return len(self.data_test)
 
     def __len__(self):
-        return len(self.data_train_al) if self.al_only else len(self.data_train_alcf)
+        if self.recent_only:
+            return len(self.data_train_recent)
+        else:
+            return len(self.data_train_al) if self.al_only else len(self.data_train_alcf)
 
     def save_active_files(self, path):
         file_list = [os.path.basename(self.ds.feat_files[int(ii/self.params.samples_per_batch)])[:-4].replace('_{}', '')
@@ -497,10 +517,12 @@ class ImlData(Dataset):
     def deactivate_all(self):
         self.inactive_idxs += self.active_idxs
         self.active_idxs = []
+        self.inactive_idxs.sort()
 
     def activate_all(self):
         self.active_idxs += self.inactive_idxs
         self.inactive_idx = []
+        self.active_idxs.sort()
 
     def __getitem__(self, index):
         idx_converter = self.active_idxs if self.limit_train_size is None else self.limited_idxs
@@ -514,7 +536,8 @@ class ImlData(Dataset):
             elif self.params.pair_type=='neighbors':
                 idx2 = idx_converter[self.extremes[index][self.close_neighbors]]
             feat2, label2 = self.base_ds[idx2]
-            return feat1, label1, feat2, label2
+            data_idx = index
+            return feat1, label1, feat2, label2, data_idx
         else:
             data_idx = idx1 - self.base_ds.n_boot_batches*self.params.samples_per_batch
             return feat1, label1, data_idx

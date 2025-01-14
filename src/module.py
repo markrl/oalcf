@@ -22,7 +22,7 @@ class VtdModule(LightningModule):
         else:
             self.model = CompClassModel(params)
             
-        reduction = 'none' if params.cb_loss else 'mean'
+        reduction = 'none' if params.cb_loss or params.recent_weight>1.0 else 'mean'
         if params.class_loss=='xent':
             self.criterion = nn.NLLLoss(weight=torch.tensor([1, params.target_weight]), reduction=reduction)
         elif params.class_loss=='dcf':
@@ -33,7 +33,7 @@ class VtdModule(LightningModule):
             self.criterion = aDcfLoss(fnr_weight=0.75)
         elif params.class_loss=='focal':
             self.criterion = FocalLoss(gamma=params.gamma, reduction=reduction)
-        self.contrast_criterion = ContrastiveLoss()
+        self.contrast_criterion = ContrastiveLoss(weight=params.target_weight)
         self.params = params
         self.save_hyperparameters()
         self.val_fns = 0
@@ -52,6 +52,7 @@ class VtdModule(LightningModule):
             self.n_nontarget = 0
             self.beta = params.beta
         self.postquential = False
+        self.recent_idxs = []
 
     def forward(self, x):
         return self.model(x)
@@ -64,7 +65,7 @@ class VtdModule(LightningModule):
             acc = torch.mean(1.0*(pred==y))
             self.log('train/acc', acc, on_step=False, on_epoch=True)
             return
-        x1,y1,x2,y2 = batch
+        x1,y1,x2,y2,idxs = batch
         embed1, y_hat, _ = self(x1)
         if self.params.xent_weight != 1.0:
             embed2, y_hat2, _ = self(x2)
@@ -76,8 +77,14 @@ class VtdModule(LightningModule):
             loss[y1==0] = loss[y1==0]*(1-self.beta)/(1-self.beta**self.n_nontarget)
             loss[y1==1] = loss[y1==1]*(1-self.beta)/(1-self.beta**self.n_target)
             loss = torch.mean(loss)
+        elif self.params.recent_weight > 1.0:
+            converted_recent_idxs = [ii for ii,jj in enumerate(idxs) if jj in self.recent_idxs]
+            if len(converted_recent_idxs) > 0:
+                loss[torch.tensor(converted_recent_idxs)] *= self.params.recent_weight
+            loss = torch.mean(loss)
         self.log('train/loss', loss.item(), on_step=False, on_epoch=True)
-        pred = torch.argmax(y_hat, dim=-1)
+        # pred = torch.argmax(y_hat, dim=-1)
+        pred = torch.exp(y_hat[:,1]) > self.params.decision_threshold
         self.train_correct += torch.sum(1*(pred==y1))
         self.train_incorrect += torch.sum(1*(pred!=y1))
         acc = torch.mean(1.0*(pred==y1))
@@ -86,7 +93,7 @@ class VtdModule(LightningModule):
 
     def validation_step(self, batch, batch_idx):
         if self.params.ensemble:
-            x,y,idxs = batch
+            x,y,_ = batch
             y_hat = self(x)
             pred = torch.argmax(y_hat, dim=1)
             acc = torch.mean(1.0*(pred==y))
@@ -102,10 +109,11 @@ class VtdModule(LightningModule):
         x,y,_ = batch
         y_hat = self(x)[1]
         loss = self.criterion(y_hat,y)
-        if self.params.cb_loss:
+        if self.params.cb_loss or self.params.recent_weight>1:
             loss = torch.mean(loss)
         self.log('val/loss', loss.item(), on_step=False, on_epoch=True)
-        pred = torch.argmax(y_hat, dim=-1)
+        # pred = torch.argmax(y_hat, dim=-1)
+        pred = torch.exp(y_hat[:,1]) > self.params.decision_threshold
         acc = torch.mean(1.0*(pred==y))
         self.log('val/combo', loss.item()+1000*(acc<1.0), on_step=False, on_epoch=True)
 
@@ -154,10 +162,11 @@ class VtdModule(LightningModule):
         x,y,idxs = batch
         y_hat = self(x)[1]
         loss = self.criterion(y_hat,y)
-        if self.params.cb_loss:
+        if self.params.cb_loss or self.params.recent_weight>1:
             loss = torch.mean(loss)
         self.log('test/loss', loss.item(), on_step=False, on_epoch=True)
-        pred = torch.argmax(y_hat, dim=-1)
+        # pred = torch.argmax(y_hat, dim=-1)
+        pred = torch.exp(y_hat[:,1]) > self.params.decision_threshold
         acc = torch.mean(1.0*(pred==y))
         self.log('test/acc', acc, on_step=False, on_epoch=True)
 

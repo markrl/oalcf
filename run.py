@@ -16,9 +16,8 @@ from src.params import get_params
 from utils.query_strategies import StrategyManager
 from utils.corrective_feedback import FeedbackSimulator
 from utils.utils import reset_trainer, update_xent, update_counts
-from utils.utils import write_header, write_session
+from utils.utils import write_header, write_session, plot_representation
 from utils.ddm import AdwinDriftDetector
-from utils.hdddm import HDDDM
 
 from pdb import set_trace
 
@@ -64,18 +63,7 @@ def main():
     # Initialize feedback simulator object
     cf_sim = FeedbackSimulator(params)
     # Initialize DDM
-    if params.drift_budget is not None:
-        budget_dict = {'detect':int(params.n_queries*5),
-                        'warn':int(params.n_queries/2*5),
-                        'none':int(params.n_queries/2)}
-        if params.drift_budget == 'adwin':
-            warn_ddm = AdwinDriftDetector(25, use_gpu)
-            true_ddm = AdwinDriftDetector(50, use_gpu)
-        else:
-            warn_ddm = HDDDM()
-            true_ddm = HDDDM()
-    else:
-        adwin = AdwinDriftDetector(use_gpu=use_gpu)
+    adwin = AdwinDriftDetector(use_gpu=use_gpu)
     # Set up output directory
     out_dir = os.path.join('output', params.run_name)
     if os.path.exists(out_dir):
@@ -85,6 +73,10 @@ def main():
     command = ' '.join([os.path.basename(sys.executable)] + sys.argv)
     with open(os.path.join(out_dir, 'command.txt'), 'w') as f:
         f.write(command)
+    # Create plotting directory, if indicated
+    if params.plot:
+        plot_dir = os.path.join(out_dir, 'plots')
+        os.mkdir(plot_dir)
     # Set up variables and output file
     if params.al_methods[-1] == ',':
         params.al_methods = params.al_methods[:-1]
@@ -126,45 +118,6 @@ def main():
         callbacks.append(ToggleNeighborsCallback())
     # Instantiate AL trainer
     al_trainer = Trainer(
-        callbacks=callbacks,
-        fast_dev_run=params.debug,
-        accelerator='gpu' if use_gpu else 'cpu',
-        devices=[0] if use_gpu else 1,
-        overfit_batches=params.overfit_batches,
-        max_epochs=params.max_epochs,
-        check_val_every_n_epoch=params.val_every_n_epochs,
-        logger=False,
-        enable_checkpointing=params.load_best,
-        log_every_n_steps=1,
-        num_sanity_val_steps=1 if params.debug else 0,
-    )
-
-    # Set up CF trainer callbacks
-    callbacks = []
-    if params.load_best:
-        ckpt_dir = 'checkpoints/'+params.run_name
-        if os.path.exists(ckpt_dir):
-            os.system(f'rm -rf {ckpt_dir}')
-        os.mkdir(ckpt_dir)
-        callbacks.append(ModelCheckpoint(
-            dirpath=ckpt_dir,
-            filename='best_cf',
-            monitor=params.monitor,
-            mode=params.mode
-        ))
-    callbacks.append(EarlyStopping(
-        monitor=params.monitor,
-        mode=params.mode,
-        patience=params.patience if params.patience_start is None else params.patience_start,
-        min_delta=params.min_delta,
-        stopping_threshold=0.0 if params.mode=='min' else 0.99999
-    ))
-    if params.pair_type=='offset':
-        callbacks.append(IncOffsetCallback())
-    elif params.pair_type=='neighbors':
-        callbacks.append(ToggleNeighborsCallback())
-    # Instantiate CF trainer
-    cf_trainer = Trainer(
         callbacks=callbacks,
         fast_dev_run=params.debug,
         accelerator='gpu' if use_gpu else 'cpu',
@@ -222,10 +175,15 @@ def main():
         module.postquential = False
         data_module.al_only = True
         inference_start_time = time.monotonic()
-        if params.load_best:
-            test_results = al_trainer.test(module, data_module, ckpt_path='best')
+        # if params.load_best:
+        #     test_results = al_trainer.test(module, data_module, ckpt_path='best')
+        # else:
+        #     test_results = al_trainer.test(module, data_module)
+        if os.path.exists(f'{ckpt_dir}/best_post.ckpt'):
+            module = module.load_from_checkpoint(f'{ckpt_dir}/best_post.ckpt')
         else:
-            test_results = al_trainer.test(module, data_module)
+            module = module.load_from_checkpoint(f'{ckpt_dir}/best_al.ckpt')
+        test_results = al_trainer.test(module, data_module)
         total_inference_time += time.monotonic()-inference_start_time
         # Save results
         if not params.debug:
@@ -236,9 +194,8 @@ def main():
 
         # Adjust patience
         if params.patience_start is not None:  
-            scale = (len(data_module.data_train)-params.bootstrap)/(params.buffer_cap-params.bootstrap)
+            scale = (len(data_module)-params.bootstrap)/(params.buffer_cap-params.bootstrap)
             patience = int(scale*(params.patience-params.patience_start) + params.patience_start)
-            # cf_trainer.callbacks[0].patience = patience
             al_trainer.callbacks[0].patience = patience
             print(f'Early stopping patience: {patience}')
 
@@ -264,7 +221,8 @@ def main():
         idxs_dict, metrics_dict, al_accuracy = sm.select_queries(data_module, al_methods, module, n_queries)
         has_drift = adwin.log_batch(data_module.test_dataloader(), module.model)
         print(adwin.drift_idxs)
-        data_module.transfer_samples(idxs_dict[mm], al_transfer=True)
+        al_only_idxs, alcf_idxs = data_module.transfer_samples(idxs_dict[mm], al_transfer=True)
+        module.recent_idxs = al_only_idxs
         n_al = len(idxs_dict[mm])
 
         # Handle exception where a batch only contains 1 sample
@@ -311,16 +269,22 @@ def main():
                 fns.append(int(test_results[0]['test/fns']))
                 ps.append(int(test_results[0]['test/ps']))
                 ns.append(int(test_results[0]['test/ns']))
+        # Plot representations
+        if params.plot:
+            # Features
+            plot_representation(os.path.join(plot_dir, f'oal_feats_se{data_module.current_batch}.png'), data_module, module, False)
+            # Latent representation
+            plot_representation(os.path.join(plot_dir, f'oal_embeds_se{data_module.current_batch}.png'), data_module, module, True)
 
         ### OAL-CF ###
-        module = module.load_from_checkpoint(f'{ckpt_dir}/best_pre.ckpt') # Use model from after AL training or beginning of batch?
+        # module = module.load_from_checkpoint(f'{ckpt_dir}/best_pre.ckpt') # Use model from after AL training or beginning of batch?
+        os.system(f'cp {ckpt_dir}/best_al.ckpt {ckpt_dir}/best_post.ckpt')
         module.postquential = False
         data_module.al_only = False
+        module.recent_idxs = alcf_idxs
         # Handle exception where a batch only contains 1 sample
         data_module.drop_last = True if len(data_module)%params.batch_size==1 else False
         # Reset trainer for the new batch
-        # if cf_trainer.lightning_module is not None:
-        #     reset_trainer(cf_trainer)
         if al_trainer.lightning_module is not None:
             reset_trainer(al_trainer)
         # Update class weighting if indicated
@@ -330,26 +294,22 @@ def main():
             update_xent(module, data_module, params.auto_mult)
         # Delete old checkpoints
         if params.load_best:
-            # os.system(f'rm -rf {ckpt_dir}/best_cf*.ckpt')
             os.system(f'rm -rf {ckpt_dir}/best_al*.ckpt')
         # Reset weights, if indicated
         if params.reset_weights:
             module.model.load_state_dict(base_state_dict)
         # Train OAL-CF model on full adaptation pool
         fit_start_time = time.monotonic()
-        # cf_trainer.fit(module, data_module)
         al_trainer.fit(module, data_module)
         total_training_time += time.monotonic()-fit_start_time
-        # total_training_epochs += cf_trainer.fit_loop.epoch_progress.total.completed
         total_training_epochs += al_trainer.fit_loop.epoch_progress.total.completed
         # Get OAL-CF evaluation metrics from this batch
         if len(data_module.data_test) > 0:
             inference_start_time = time.monotonic()
             if params.load_best:
-                # test_results = cf_trainer.test(module, data_module, ckpt_path='best')
                 test_results = al_trainer.test(module, data_module, ckpt_path='best')
             else:
-                test_results = cf_trainer.test(module, data_module)
+                test_results = al_trainer.test(module, data_module)
             total_inference_time += time.monotonic()-inference_start_time
         else:
             test_results = None
@@ -365,6 +325,12 @@ def main():
                 cf_fns.append(int(test_results[0]['test/fns']))
                 cf_ps.append(int(test_results[0]['test/ps']))
                 cf_ns.append(int(test_results[0]['test/ns']))
+        # Plot representations
+        if params.plot:
+            # Features
+            plot_representation(os.path.join(plot_dir, f'oalcf_feats_se{data_module.current_batch}.png'), data_module, module, False)
+            # Latent representation
+            plot_representation(os.path.join(plot_dir, f'oalcf_embeds_se{data_module.current_batch}.png'), data_module, module, True)
         
         # Get corrective feedback
         cf_idxs = cf_sim.simulate(data_module, module)
@@ -373,7 +339,8 @@ def main():
             cf_classes = [data_module.data_test[ii][1] for ii in cf_idxs]
             cf_p = int(np.sum(cf_classes))
             cf_n = n_cf - cf_p
-            data_module.transfer_samples(cf_idxs, al_transfer=False)
+            alcf_idxs = data_module.transfer_samples(cf_idxs, al_transfer=False)
+            module.recent_idxs = alcf_idxs
             if base_state_dict is None:
                 # Handle exception where a batch only contains 1 sample
                 data_module.drop_last = True if len(data_module)%params.batch_size==1 else False
@@ -383,8 +350,6 @@ def main():
                 elif params.auto_weight and params.class_loss=='xent':
                     update_xent(module, data_module, params.auto_mult)
                 # Reset trainer for the new batch
-                # if cf_trainer.lightning_module is not None:
-                #     reset_trainer(cf_trainer)
                 if al_trainer.lightning_module is not None:
                     reset_trainer(al_trainer)
                 # Reset weights, if indicated
@@ -392,14 +357,10 @@ def main():
                     module.model.load_state_dict(base_state_dict)
                 # Train model on adaptation pool
                 if params.load_best:
-                    # os.system(f'rm -rf {ckpt_dir}/best_cf*.ckpt')
                     os.system(f'rm -rf {ckpt_dir}/best_al*.ckpt')
                 fit_start_time = time.monotonic()
-                # cf_trainer.fit(module, data_module)
                 al_trainer.fit(module, data_module)
                 total_training_time += time.monotonic()-fit_start_time
-                # total_training_epochs += cf_trainer.fit_loop.epoch_progress.total.completed
-                # diagnostic_test_results = cf_trainer.test(module, data_module, ckpt_path='best')
                 total_training_epochs += al_trainer.fit_loop.epoch_progress.total.completed
                 diagnostic_test_results = al_trainer.test(module, data_module, ckpt_path='best')
         else:
@@ -427,8 +388,7 @@ def main():
                 has_drift, (time.monotonic()-batch_start_time, total_training_time, total_inference_time), 
                 total_training_epochs, model_zeros)
         # Prepare transition to next batch
-        module.n_train = len(data_module)
-        module.n_train = len(data_module.data_train_al)
+        module.n_train = len(data_module.data_train_alcf)
         data_module.next_batch()
         data_module.forget_samples()
     # Save final model and AL samples

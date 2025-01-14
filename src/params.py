@@ -62,6 +62,8 @@ def get_params():
                         help='target cost for inverse weighting')
     parser.add_argument('--cb_loss', default=False, action='store_true',
                         help='use class-balanced loss')
+    parser.add_argument('--recent_weight', type=float, default=1.0,
+                        help='add weight to the most recently added AL samples')
     parser.add_argument('--beta', type=float, default=0.999,
                         help='factor for cb loss')
     parser.add_argument('--gamma', type=float, default=2.0,
@@ -162,6 +164,8 @@ def get_params():
                         help='use ensemble model')
     parser.add_argument('--quantize', default=False, action='store_true',
                         help='use quantized (qtorch) model with fixed-point numerical type')
+    parser.add_argument('--decision_threshold', type=float, default=0.5,
+                        help='decision threshold for making predictions from posteriors')
 
     # Data arguments
     # parser.add_argument('--feat_root', type=str, default='/data/VTD/wavlm_11k_1hr/,/data/VTD/xvectors_11k_1hr',
@@ -180,6 +184,8 @@ def get_params():
                         help='target class for LID task')
     parser.add_argument('--repeat_dataset', type=int, default=1,
                         help='extend the data stream by repeating the dataset this many times')
+    parser.add_argument('--plot', default=False, action='store_true',
+                        help='flag to plot features and latent representations')
 
 
     return parser.parse_args()

@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from pytorch_lightning.trainer.states import TrainerFn, TrainerStatus
+import matplotlib.pyplot as plt
 
 from pdb import set_trace
 
@@ -257,3 +258,55 @@ def raw_score_gapfiller(data, threshold=0.0, kernsize=6):
         ii = machine_segment_end
     
     return data
+
+
+def plot_representation(path, data_module, module, embed=False):
+    orig_drop = data_module.drop_last
+    data_module.drop_last = False
+    test_loader = data_module.test_dataloader()
+    train_loader = data_module.train_dataloader()
+    data_module.drop_last = orig_drop
+    labels = torch.cat([batch[1] for batch in test_loader], dim=0)
+    model = module.model
+    model.eval()
+    with torch.no_grad():
+        preds = torch.cat([torch.argmax(F.softmax(model(batch[0])[-1], dim=-1), dim=-1) for batch in test_loader], dim=0)
+    if not embed:
+        test_feats = torch.cat([batch[0] for batch in test_loader], dim=0)
+        train_feats = torch.cat([batch[0] for batch in train_loader], dim=0)
+        feats = torch.cat([test_feats, train_feats], dim=0)
+        means = torch.mean(feats, dim=0)
+        u,s,vh = torch.linalg.svd(feats-means, full_matrices=False)
+        proj = vh[:2].T
+        test_feats2d = (test_feats-means)@proj
+        train_feats2d = (train_feats-means)@proj
+        test_correct = test_feats2d[labels==preds]
+        test_incorrect = test_feats2d[labels!=preds]
+        plt.scatter(train_feats2d[:,0], train_feats2d[:,1], label='Train', alpha=0.5)
+        plt.scatter(test_correct[:,0], test_correct[:,1], label='Test-right', alpha=0.5)
+        plt.scatter(test_incorrect[:,0], test_incorrect[:,1], marker='s', label='Test-wrong', alpha=0.8)
+        plt.xlabel('Dim 1')
+        plt.ylabel('Dim 2')
+        plt.legend()
+        plt.savefig(path)
+        plt.clf()
+    else:
+        with torch.no_grad():
+            test_feats = torch.cat([model.get_embed(batch[0]) for batch in test_loader], dim=0)
+            train_feats = torch.cat([model.get_embed(batch[0]) for batch in train_loader], dim=0)
+        feats = torch.cat([test_feats, train_feats], dim=0)
+        means = torch.mean(feats, dim=0)
+        u,s,vh = torch.linalg.svd(feats-means, full_matrices=False)
+        proj = vh[:2].T
+        test_feats2d = (test_feats-means)@proj
+        train_feats2d = (train_feats-means)@proj
+        test_correct = test_feats2d[labels==preds]
+        test_incorrect = test_feats2d[labels!=preds]
+        plt.scatter(train_feats2d[:,0], train_feats2d[:,1], label='Train', alpha=0.5)
+        plt.scatter(test_correct[:,0], test_correct[:,1], label='Test-right', alpha=0.5)
+        plt.scatter(test_incorrect[:,0], test_incorrect[:,1], marker='s', label='Test-wrong', alpha=0.8)
+        plt.xlabel('Dim 1')
+        plt.ylabel('Dim 2')
+        plt.legend()
+        plt.savefig(path)
+        plt.clf()
