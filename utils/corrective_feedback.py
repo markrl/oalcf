@@ -92,7 +92,9 @@ class FeedbackSimulator:
             else:
                 logits = [model(batch[0])[-1] for batch in loader]
         logits = torch.cat(logits, dim=0).cpu()
-        scores, preds = torch.max(F.softmax(logits, dim=-1), dim=-1)
+
+        scores = torch.max(F.softmax(logits, dim=-1), dim=-1)[0]
+        preds = 1*(F.softmax(logits,dim=-1)[:,1] > self.params.decision_threshold)
         return preds, scores
 
     def interleave(self, list_list):

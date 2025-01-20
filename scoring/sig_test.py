@@ -1,4 +1,4 @@
-from scipy.stats import ttest_rel
+from scipy.stats import ttest_rel, wilcoxon
 import os
 import sys
 import glob
@@ -68,12 +68,18 @@ def main(run1, run2, prefix=''):
             fprs2.append(fps/ns)
             imlms2.append((fps+n_samples)/(ns+ps) + fns/ps)
 
-    dcf_pval = ttest_rel(dcfs1, dcfs2, alternative='less').pvalue
-    fnr_pval = ttest_rel(fnrs1, fnrs2, alternative='less').pvalue
-    fpr_pval = ttest_rel(fprs1, fprs2, alternative='less').pvalue
-    imlm_pval = ttest_rel(imlms1, imlms2, alternative='less').pvalue
-    print('DCF\tFNR\tFPR\tIMLM')
-    print(f'{dcf_pval:.4f}\t{fnr_pval:.4f}\t{fpr_pval:.4f}\t{imlm_pval:.4f}')
+    dcf_pval_ttest = ttest_rel(dcfs1, dcfs2, alternative='less').pvalue
+    fnr_pval_ttest = ttest_rel(fnrs1, fnrs2, alternative='less').pvalue
+    fpr_pval_ttest = ttest_rel(fprs1, fprs2, alternative='less').pvalue
+    imlm_pval_ttest = ttest_rel(imlms1, imlms2, alternative='less').pvalue
+
+    dcf_pval_wilcoxon = wilcoxon(dcfs1, dcfs2, alternative='less', method='approx').pvalue
+    fnr_pval_wilcoxon = wilcoxon(fnrs1, fnrs2, alternative='less', method='approx').pvalue
+    fpr_pval_wilcoxon = wilcoxon(fprs1, fprs2, alternative='less', method='approx').pvalue
+    imlm_pval_wilcoxon = wilcoxon(imlms1, imlms2, alternative='less', method='approx').pvalue
+    print('\t\tDCF\tFNR\tFPR\tIMLM')
+    print(f'T-test\t\t{dcf_pval_ttest:.4f}\t{fnr_pval_ttest:.4f}\t{fpr_pval_ttest:.4f}\t{imlm_pval_ttest:.4f}')
+    print(f'Wilcoxon\t{dcf_pval_wilcoxon:.4f}\t{fnr_pval_wilcoxon:.4f}\t{fpr_pval_wilcoxon:.4f}\t{imlm_pval_wilcoxon:.4f}')
 
 
 if __name__=='__main__':

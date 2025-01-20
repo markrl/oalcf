@@ -77,7 +77,8 @@ class VtdModule(LightningModule):
             loss[y1==1] = loss[y1==1]*(1-self.beta)/(1-self.beta**self.n_target)
             loss = torch.mean(loss)
         self.log('train/loss', loss.item(), on_step=False, on_epoch=True)
-        pred = torch.argmax(y_hat, dim=-1)
+        # pred = torch.argmax(y_hat, dim=-1)
+        pred = 1*(torch.exp(y_hat)[:,1] > self.params.decision_threshold)
         self.train_correct += torch.sum(1*(pred==y1))
         self.train_incorrect += torch.sum(1*(pred!=y1))
         acc = torch.mean(1.0*(pred==y1))
@@ -105,7 +106,8 @@ class VtdModule(LightningModule):
         if self.params.cb_loss:
             loss = torch.mean(loss)
         self.log('val/loss', loss.item(), on_step=False, on_epoch=True)
-        pred = torch.argmax(y_hat, dim=-1)
+        # pred = torch.argmax(y_hat, dim=-1)
+        pred = 1*(torch.exp(y_hat)[:,1] > self.params.decision_threshold)
         acc = torch.mean(1.0*(pred==y))
         self.log('val/combo', loss.item()+1000*(acc<1.0), on_step=False, on_epoch=True)
 
@@ -157,7 +159,8 @@ class VtdModule(LightningModule):
         if self.params.cb_loss:
             loss = torch.mean(loss)
         self.log('test/loss', loss.item(), on_step=False, on_epoch=True)
-        pred = torch.argmax(y_hat, dim=-1)
+        # pred = torch.argmax(y_hat, dim=-1)
+        pred = 1*(torch.exp(y_hat)[:,1] > self.params.decision_threshold)
         acc = torch.mean(1.0*(pred==y))
         self.log('test/acc', acc, on_step=False, on_epoch=True)
 

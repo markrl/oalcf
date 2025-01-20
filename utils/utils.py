@@ -15,7 +15,8 @@ class ContrastiveLoss(torch.nn.Module):
         super(ContrastiveLoss, self).__init__()
         self.margin = margin
         self.weight = weight
-        self.dist_func = euclidean_distance
+        # self.dist_func = euclidean_distance
+        self.dist_func = cosine_distance
         self.reduction = reduction
 
     def forward(self, x0, x1, y0, y1):
@@ -39,6 +40,9 @@ class ContrastiveLoss(torch.nn.Module):
 def euclidean_distance(x0, x1):
     diff = x0 - x1
     return torch.sqrt(torch.sum(torch.pow(diff, 2), 1))
+
+def cosine_distance(x0, x1):
+    return 1 - F.cosine_similarity(x0, x1, dim=1)
 
 
 class DcfLoss(torch.nn.Module):

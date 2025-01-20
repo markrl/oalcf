@@ -164,6 +164,8 @@ def get_params():
                         help='use ensemble model')
     parser.add_argument('--quantize', default=False, action='store_true',
                         help='use quantized (qtorch) model with fixed-point numerical type')
+    parser.add_argument('--decision_threshold', type=float, default=0.5,
+                        help='threshold for converting posteriors to predictions')
 
     # Data arguments
     # parser.add_argument('--feat_root', type=str, default='/data/VTD/wavlm_11k_1hr/,/data/VTD/xvectors_11k_1hr',
