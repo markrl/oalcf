@@ -7,7 +7,7 @@ from pytorch_lightning import LightningModule
 
 from src.model import CompClassModel
 from ensemble.ensemble_model import ArfModel
-from utils.utils import ContrastiveLoss, DcfLoss, ImlmLoss, aDcfLoss, FocalLoss
+from utils.utils import ContrastiveLoss, DcfLoss, ImlmLoss, aDcfLoss, FocalLoss, LearnableNLLLoss
 
 from pdb import set_trace
 
@@ -24,7 +24,10 @@ class VtdModule(LightningModule):
             
         reduction = 'none' if params.cb_loss else 'mean'
         if params.class_loss=='xent':
-            self.criterion = nn.NLLLoss(weight=torch.tensor([1, params.target_weight]), reduction=reduction)
+            if params.learn_mult:
+                self.criterion = LearnableNLLLoss(weight=params.target_weight, reduction=reduction)
+            else:
+                self.criterion = nn.NLLLoss(weight=torch.tensor([1, params.target_weight]), reduction=reduction)
         elif params.class_loss=='dcf':
             self.criterion = DcfLoss(fnr_weight=0.75, smax_weight=params.dsmax_mult, learn_mult=params.learn_mult, learn_error_weight=params.learn_error_weight)
         elif params.class_loss=='imlm':
@@ -200,6 +203,7 @@ class VtdModule(LightningModule):
         self.test_fps = 0
         self.test_ps = 0
         self.test_ns = 0
+        print(self.criterion.learned_mult)
 
     def configure_optimizers(self):
         if self.params.ensemble:

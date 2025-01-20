@@ -136,6 +136,29 @@ class FocalLoss(nn.Module):
             return loss.sum()
         else:
             return loss
+        
+
+class LearnableNLLLoss(nn.Module):
+    def __init__(self,
+            weight = None,
+            reduction = "mean",):
+        super().__init__()
+        self.weight = weight
+        self.reduction = reduction
+        self.learned_mult = nn.Parameter(torch.tensor(1.).float(), requires_grad=True)
+
+    def forward(self, inp, target):
+        weights_mult = torch.ones(target.shape)
+        weights_mult[target==1] *= self.learned_mult*self.weight
+        losses = -weights_mult*(target*inp[:,1] + (1-target)*inp[:,0])
+        weights_frac = torch.ones(target.shape)
+        weights_frac[target==1] /= torch.sum(target==1)*self.learned_mult*self.weight
+        weights_frac[target==0] /= torch.sum(target==0)
+        if self.reduction=='mean':
+            return torch.mean(weights_frac*losses)
+        else:
+            return losses
+
 
 def reset_trainer(trainer):
     trainer.fit_loop.epoch_progress.reset()
