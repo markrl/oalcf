@@ -168,8 +168,6 @@ def get_params():
                         help='threshold for converting posteriors to predictions')
 
     # Data arguments
-    # parser.add_argument('--feat_root', type=str, default='/data/VTD/wavlm_11k_1hr/,/data/VTD/xvectors_11k_1hr',
-    #                     help='root directory for features')
     parser.add_argument('--feat_root', type=str, default='auto',
                         help='root directory for features; `auto` uses the best features for the task')
     parser.add_argument('--ann_root', type=str, default='~/data/vtd/all_labels_1hr',

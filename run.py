@@ -3,7 +3,6 @@ import numpy as np
 import os
 import sys
 import glob
-from copy import deepcopy
 import pickle
 
 from pytorch_lightning import Trainer

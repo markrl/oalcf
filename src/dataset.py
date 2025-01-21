@@ -613,7 +613,7 @@ class ToggleNeighborsCallback(Callback):
     def on_train_epoch_start(self, trainer, pl_module):
         self.use_gpu = trainer.model.params.gpus > 0 and torch.cuda.is_available()
         self.ensemble = trainer.model.params.ensemble
-        if trainer.datamodule.data_train.close_neighbors:
+        if not trainer.datamodule.data_train.close_neighbors:
             # Get embeddings
             embeds = self.extract_embeds(trainer.datamodule, trainer.model)
             # Get distances
@@ -630,6 +630,7 @@ class ToggleNeighborsCallback(Callback):
         for sample in samples:
             diff = samples-sample
             dists = torch.norm(diff, dim=1)
+            # dists = 1 - F.cosine_similarity(sample, samples, dim=1)
             all_dists.append(dists)
         return torch.stack(all_dists, dim=0)
     

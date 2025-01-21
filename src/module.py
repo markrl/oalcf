@@ -203,7 +203,7 @@ class VtdModule(LightningModule):
         self.test_fps = 0
         self.test_ps = 0
         self.test_ns = 0
-        print(self.criterion.learned_mult)
+        # print(self.criterion.learned_mult)
 
     def configure_optimizers(self):
         if self.params.ensemble:
