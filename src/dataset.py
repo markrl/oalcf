@@ -532,18 +532,33 @@ class ImlData(Dataset):
 
     def __getitem__(self, index):
         idx_converter = self.active_idxs if self.limit_train_size is None else self.limited_idxs
-        idx1 = idx_converter[index]
-        feat1, label1 = self.base_ds[idx1]
         if self.training:
-            if self.params.pair_type=='rand':
-                idx2 = idx_converter[np.random.randint(low=0, high=len(self))]
-            elif self.params.pair_type=='offset':
-                idx2 = idx_converter[self.choose_pair_idx(index)]
-            elif self.params.pair_type=='neighbors':
-                idx2 = idx_converter[self.extremes[index][self.close_neighbors]]
-            feat2, label2 = self.base_ds[idx2]
-            return feat1, label1, feat2, label2
+            anchor_idx = idx_converter[index]
+            anchor, anchor_label = self.base_ds[anchor_idx]
+            if self.params.contrast_loss=='triplet':
+                if self.params.pair_type=='rand':
+                    print('Not implemented')
+                    exit()
+                elif self.params.pair_type=='neighbors':
+                    pos_idx = idx_converter[self.extremes[index][False]]
+                    neg_idx = idx_converter[self.extremes[index][True]]
+                pos, pos_label = self.base_ds[pos_idx]
+                neg, neg_label = self.base_ds[neg_idx]
+                return anchor, anchor_label, pos, pos_label, neg, neg_label
+            else:
+                idx1 = idx_converter[index]
+                feat1, label1 = self.base_ds[idx1]
+                if self.params.pair_type=='rand':
+                    idx2 = idx_converter[np.random.randint(low=0, high=len(self))]
+                elif self.params.pair_type=='offset':
+                    idx2 = idx_converter[self.choose_pair_idx(index)]
+                elif self.params.pair_type=='neighbors':
+                    idx2 = idx_converter[self.extremes[index][self.close_neighbors]]
+                feat2, label2 = self.base_ds[idx2]
+                return feat1, label1, feat2, label2
         else:
+            idx1 = idx_converter[index]
+            feat1, label1 = self.base_ds[idx1]
             data_idx = idx1 - self.base_ds.n_boot_batches*self.params.samples_per_batch
             return feat1, label1, data_idx
     

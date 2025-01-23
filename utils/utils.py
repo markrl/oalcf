@@ -149,13 +149,16 @@ class LearnableNLLLoss(nn.Module):
 
     def forward(self, inp, target):
         weights_mult = torch.ones(target.shape)
-        weights_mult[target==1] *= self.learned_mult*self.weight
+        weights_mult[target==1] *= self.learned_mult*self.weight/(self.learned_mult*self.weight+1)
+        weights_mult[target==0] *= 1/(self.learned_mult*self.weight+1)
         losses = -weights_mult*(target*inp[:,1] + (1-target)*inp[:,0])
-        weights_frac = torch.ones(target.shape)
-        weights_frac[target==1] /= torch.sum(target==1)*self.learned_mult*self.weight
-        weights_frac[target==0] /= torch.sum(target==0)
+        # weights_frac = torch.ones(target.shape)
+        # weights_frac[target==1] /= torch.sum(weights_mult[target==1])
+        # weights_frac[target==0] /= torch.sum(weights_mult[target==0])
+        # if self.reduction=='mean':
+        #     return torch.mean(weights_frac*losses)
         if self.reduction=='mean':
-            return torch.mean(weights_frac*losses)
+            return torch.mean(losses)
         else:
             return losses
 

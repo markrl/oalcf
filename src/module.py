@@ -2,6 +2,7 @@ import os
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from pytorch_lightning import LightningModule
 
@@ -36,7 +37,10 @@ class VtdModule(LightningModule):
             self.criterion = aDcfLoss(fnr_weight=0.75)
         elif params.class_loss=='focal':
             self.criterion = FocalLoss(gamma=params.gamma, reduction=reduction)
-        self.contrast_criterion = ContrastiveLoss()
+        if params.contrast_loss=='contrastive':
+            self.contrast_criterion = ContrastiveLoss()
+        elif params.contrast_loss=='triplet':
+            self.contrast_criterion = nn.TripletMarginWithDistanceLoss(distance_function=lambda x, y: 1.0 - F.cosine_similarity(x, y))
         self.params = params
         self.save_hyperparameters()
         self.val_fns = 0
@@ -67,20 +71,26 @@ class VtdModule(LightningModule):
             acc = torch.mean(1.0*(pred==y))
             self.log('train/acc', acc, on_step=False, on_epoch=True)
             return
-        x1,y1,x2,y2 = batch
-        embed1, y_hat, _ = self(x1)
-        if self.params.xent_weight != 1.0:
+        
+        if self.params.contrast_loss=='triplet':
+            x1,y1,x2,y2,x3,y3 = batch
+            embed1, y_hat, _ = self(x1)
             embed2, y_hat2, _ = self(x2)
-            loss = self.params.xent_weight*(self.criterion(y_hat,y1)+self.criterion(y_hat2,y2)) \
-                    + self.contrast_criterion(embed1,embed2,y1,y2)
+            embed3, y_hat3, _ = self(x3)
+            class_loss = self.criterion(y_hat,y1)+self.criterion(y_hat2,y2)+self.criterion(y_hat3,y3)
+            contrast_loss = self.contrast_criterion(embed1,embed2,embed3)
         else:
-            loss = self.criterion(y_hat,y1)
+            x1,y1,x2,y2 = batch
+            embed1, y_hat, _ = self(x1)
+            embed2, y_hat2, _ = self(x2)
+            class_loss = self.criterion(y_hat,y1)+self.criterion(y_hat2,y2)
+            contrast_loss = self.contrast_criterion(embed1,embed2,y1,y2)
+        loss = self.params.xent_weight*class_loss + contrast_loss
         if self.params.cb_loss:
             loss[y1==0] = loss[y1==0]*(1-self.beta)/(1-self.beta**self.n_nontarget)
             loss[y1==1] = loss[y1==1]*(1-self.beta)/(1-self.beta**self.n_target)
             loss = torch.mean(loss)
         self.log('train/loss', loss.item(), on_step=False, on_epoch=True)
-        # pred = torch.argmax(y_hat, dim=-1)
         pred = 1*(torch.exp(y_hat)[:,1] > self.params.decision_threshold)
         self.train_correct += torch.sum(1*(pred==y1))
         self.train_incorrect += torch.sum(1*(pred!=y1))
@@ -90,7 +100,7 @@ class VtdModule(LightningModule):
 
     def validation_step(self, batch, batch_idx):
         if self.params.ensemble:
-            x,y,idxs = batch
+            x,y,_ = batch
             y_hat = self(x)
             pred = torch.argmax(y_hat, dim=1)
             acc = torch.mean(1.0*(pred==y))
@@ -109,7 +119,6 @@ class VtdModule(LightningModule):
         if self.params.cb_loss:
             loss = torch.mean(loss)
         self.log('val/loss', loss.item(), on_step=False, on_epoch=True)
-        # pred = torch.argmax(y_hat, dim=-1)
         pred = 1*(torch.exp(y_hat)[:,1] > self.params.decision_threshold)
         acc = torch.mean(1.0*(pred==y))
         self.log('val/combo', loss.item()+1000*(acc<1.0), on_step=False, on_epoch=True)
@@ -162,7 +171,6 @@ class VtdModule(LightningModule):
         if self.params.cb_loss:
             loss = torch.mean(loss)
         self.log('test/loss', loss.item(), on_step=False, on_epoch=True)
-        # pred = torch.argmax(y_hat, dim=-1)
         pred = 1*(torch.exp(y_hat)[:,1] > self.params.decision_threshold)
         acc = torch.mean(1.0*(pred==y))
         self.log('test/acc', acc, on_step=False, on_epoch=True)
@@ -203,7 +211,8 @@ class VtdModule(LightningModule):
         self.test_fps = 0
         self.test_ps = 0
         self.test_ns = 0
-        # print(self.criterion.learned_mult)
+        if self.params.learn_mult:
+            print(self.criterion.learned_mult)
 
     def configure_optimizers(self):
         if self.params.ensemble:

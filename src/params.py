@@ -50,6 +50,8 @@ def get_params():
                         help='loss weighting for target class')
     parser.add_argument('--class_loss', type=str, default='xent',
                         help='classification loss type: `xent` or `dcf`')
+    parser.add_argument('--contrast_loss', type=str, default='contrastive',
+                        help='contrastive loss type: `contrastive` or `triplet`')
     parser.add_argument('--dsmax_mult', type=float, default=0.0,
                         help='multiplier for differentiable softmax in DCF loss')
     parser.add_argument('--learn_mult', default=False, action='store_true',
