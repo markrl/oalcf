@@ -643,8 +643,9 @@ class ToggleNeighborsCallback(Callback):
     def get_dists(self, samples):
         all_dists = []
         for sample in samples:
-            diff = samples-sample
-            dists = torch.norm(diff, dim=1)
+            # diff = samples-sample
+            # dists = torch.norm(diff, dim=1)
+            dists = 1-torch.cosine_similarity(sample, samples)
             all_dists.append(dists)
         return torch.stack(all_dists, dim=0)
 
