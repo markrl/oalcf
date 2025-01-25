@@ -97,6 +97,8 @@ class ImlDataModule(LightningDataModule):
         self.data_train.activate_samples(idxs)
         self.train_active_order[self.current_batch] = idxs
         self.data_train.limit_data(self.data_test)
+        if self.params.pair_type=='rand' and self.params.contrast_loss=='triplet':
+            self.data_train.update_class_idx_lists()
 
     def get_class_counts(self):
         labels = torch.FloatTensor([self.ds.get_label(ii) for ii in self.data_train.active_idxs])
@@ -185,6 +187,8 @@ class ImlDataModule(LightningDataModule):
             print('Not a valid memory buffer')
             exit()
         self.data_train.limit_data(self.data_test)
+        if self.params.pair_type=='rand' and self.params.contrast_loss=='triplet':
+            self.data_train.update_class_idx_lists()
 
     def forget_samples(self):
         if self.forget_n_batches is not None:
@@ -474,6 +478,9 @@ class ImlData(Dataset):
                 self.limit_train_size = None
         else:
             self.limit_train_size = None
+        if params.pair_type=='rand' and params.contrast_loss=='triplet':
+            self.target_idx_list = []
+            self.nontarget_idx_list = []
 
     def __len__(self):
         return len(self.active_idxs) if self.limit_train_size is None else len(self.limited_idxs)
@@ -537,8 +544,12 @@ class ImlData(Dataset):
             anchor, anchor_label = self.base_ds[anchor_idx]
             if self.params.contrast_loss=='triplet':
                 if self.params.pair_type=='rand':
-                    print('Not implemented')
-                    exit()
+                    if anchor_label==1:
+                        pos_idx = self.target_idx_list[np.random.randint(low=0, high=len(self.target_idx_list))]
+                        neg_idx = self.nontarget_idx_list[np.random.randint(low=0, high=len(self.nontarget_idx_list))]
+                    else:
+                        pos_idx = self.nontarget_idx_list[np.random.randint(low=0, high=len(self.nontarget_idx_list))]
+                        neg_idx = self.target_idx_list[np.random.randint(low=0, high=len(self.target_idx_list))]
                 elif self.params.pair_type=='neighbors':
                     pos_idx = idx_converter[self.extremes[index][False]]
                     neg_idx = idx_converter[self.extremes[index][True]]
@@ -565,6 +576,16 @@ class ImlData(Dataset):
     def get_label(self, index):
         index = self.active_idxs[index]
         return self.base_ds.get_label(index)
+
+    def update_class_idx_lists(self):
+        self.target_idx_list = []
+        self.nontarget_idx_list = []
+        for idx in self.active_idxs:
+            label = self.base_ds.get_label(idx)
+            if label==1:
+                self.target_idx_list.append(idx)
+            else:
+                self.nontarget_idx_list.append(idx)
     
     def limit_data(self, comp_data):
         if self.limit_train_size is not None and len(self.active_idxs) > self.limit_train_size and len(comp_data) >= self.n_clusters:
