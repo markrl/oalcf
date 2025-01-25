@@ -624,10 +624,16 @@ class ImlData(Dataset):
                 self.extremes[ii][True] = np.flipud(sorted_idxs)[np.where(same_labels[np.flipud(sorted_idxs)])[0][0]]
                 self.extremes[ii][False] = np.flipud(sorted_idxs)[np.where(same_labels[np.flipud(sorted_idxs)])[0][0]]
             else:
-                # Close but different class
-                self.extremes[ii][True] = sorted_idxs[np.where(1-same_labels[sorted_idxs])[0][0]]
                 # Far but same class
                 self.extremes[ii][False] = np.flipud(sorted_idxs)[np.where(same_labels[np.flipud(sorted_idxs)])[0][0]]
+                # Close but different class
+                # self.extremes[ii][True] = sorted_idxs[np.where(1-same_labels[sorted_idxs])[0][0]]
+                # Semi-hard negative
+                pos_dist = dists[ii,self.extremes[ii][False]]
+                if np.sum(np.logical_and(1-same_labels[sorted_idxs], dists[ii]>pos_dist))>0:
+                    self.extremes[ii][True] = sorted_idxs[np.where(np.logical_and(1-same_labels[sorted_idxs], dists[ii]>pos_dist))[0][0]]
+                else:
+                    self.extremes[ii][True] = np.flipud(sorted_idxs)[np.where(1-same_labels[np.flipud(sorted_idxs)])[0][0]]
 
     def cat_data(self):
         feats = []
