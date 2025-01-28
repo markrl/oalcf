@@ -108,7 +108,7 @@ def main():
     # Train on training corpus
     trainer.fit(module, data_module)
     # Evaluate on test corpus
-    test_results = trainer.test(module, data_module)
+    test_results = trainer.test(module, data_module, ckpt_path='best')
 
     # Write results to file
     fps, fns, ps, ns = [], [], [], []
