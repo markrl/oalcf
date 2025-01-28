@@ -543,7 +543,9 @@ class ImlData(Dataset):
             anchor_idx = idx_converter[index]
             anchor, anchor_label = self.base_ds[anchor_idx]
             if self.params.contrast_loss=='triplet':
-                if self.params.pair_type=='rand':
+                if 'within_batch' in self.params.pair_type:
+                    return anchor, anchor_label
+                elif self.params.pair_type=='rand':
                     if anchor_label==1:
                         pos_idx = self.target_idx_list[np.random.randint(low=0, high=len(self.target_idx_list))]
                         neg_idx = self.nontarget_idx_list[np.random.randint(low=0, high=len(self.nontarget_idx_list))]
@@ -565,6 +567,8 @@ class ImlData(Dataset):
                     idx2 = idx_converter[self.choose_pair_idx(index)]
                 elif self.params.pair_type=='neighbors':
                     idx2 = idx_converter[self.extremes[index][self.close_neighbors]]
+                elif 'within_batch' in self.params.pair_type:
+                    return feat1, label1
                 feat2, label2 = self.base_ds[idx2]
                 return feat1, label1, feat2, label2
         else:

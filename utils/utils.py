@@ -161,6 +161,87 @@ class LearnableNLLLoss(nn.Module):
             return torch.mean(losses)
         else:
             return losses
+        
+
+def choose_pair(embeds, labels, pair_type):
+    target_idxs = torch.where(labels==1)[0]
+    nontarget_idxs = torch.where(labels==0)[0]
+    if 'rand' in pair_type:
+        return torch.randint(low=0,high=len(embeds),size=(len(embeds),))
+    elif 'semi' in pair_type:
+        dists = []
+        for embed in embeds:
+            dists.append(1-torch.cosine_similarity(embed, embeds))
+        dists = torch.stack(dists, dim=0)
+        same_idxs = torch.randint(high=2,size=(len(embeds),))
+        out_idxs = torch.zeros(len(embeds), dtype=torch.long)
+        if len(target_idxs)>0:
+            if torch.sum(torch.logical_and(same_idxs==1, labels==1)) > 0:
+                out_idxs[torch.logical_and(same_idxs==1, labels==1)] = target_idxs[torch.argmax(dists[torch.logical_and(same_idxs==1, labels==1)][:,target_idxs], dim=-1)]
+        if len(nontarget_idxs)>0:
+            if torch.sum(torch.logical_and(same_idxs==1, labels==0)) > 0:
+                out_idxs[torch.logical_and(same_idxs==1, labels==0)] = nontarget_idxs[torch.argmax(dists[torch.logical_and(same_idxs==1, labels==0)][:,nontarget_idxs], dim=-1)]
+        if len(target_idxs)>0 and len(nontarget_idxs)>0:
+            if torch.sum(torch.logical_and(same_idxs==0, labels==0)) > 0:
+                out_idxs[torch.logical_and(same_idxs==0, labels==0)] = target_idxs[torch.argmin(dists[torch.logical_and(same_idxs==0, labels==0)][:,target_idxs], dim=-1)]
+            if torch.sum(torch.logical_and(same_idxs==0, labels==1)) > 0:
+                out_idxs[torch.logical_and(same_idxs==0, labels==1)] = nontarget_idxs[torch.argmin(dists[torch.logical_and(same_idxs==0, labels==1)][:,nontarget_idxs], dim=-1)]
+        return out_idxs
+    elif 'hard' in pair_type:
+        dists = []
+        for embed in embeds:
+            dists.append(1-torch.cosine_similarity(embed, embeds))
+        dists = torch.stack(dists, dim=0)
+        same_idxs = torch.randint(high=2,size=(len(embeds),))
+        out_idxs = torch.zeros(len(embeds), dtype=torch.long)
+        if len(target_idxs)>0:
+            if torch.sum(torch.logical_and(same_idxs==1, labels==1)) > 0:
+                out_idxs[torch.logical_and(same_idxs==1, labels==1)] = target_idxs[torch.argmax(dists[torch.logical_and(same_idxs==1, labels==1)][:,target_idxs], dim=-1)]
+        if len(nontarget_idxs)>0:
+            if torch.sum(torch.logical_and(same_idxs==1, labels==0)) > 0:
+                out_idxs[torch.logical_and(same_idxs==1, labels==0)] = nontarget_idxs[torch.argmax(dists[torch.logical_and(same_idxs==1, labels==0)][:,nontarget_idxs], dim=-1)]
+        if len(target_idxs)>0 and len(nontarget_idxs)>0:
+            if torch.sum(torch.logical_and(same_idxs==0, labels==0)) > 0:
+                out_idxs[torch.logical_and(same_idxs==0, labels==0)] = target_idxs[torch.argmin(dists[torch.logical_and(same_idxs==0, labels==0)][:,target_idxs], dim=-1)]
+            if torch.sum(torch.logical_and(same_idxs==0, labels==1)) > 0:
+                out_idxs[torch.logical_and(same_idxs==0, labels==1)] = nontarget_idxs[torch.argmin(dists[torch.logical_and(same_idxs==0, labels==1)][:,nontarget_idxs], dim=-1)]
+        return out_idxs
+
+
+def choose_pos_neg(embeds, labels, pair_type):
+    target_idxs = torch.where(labels==1)[0]
+    nontarget_idxs = torch.where(labels==0)[0]
+    if 'rand' in pair_type:
+        pos_idxs = torch.zeros(len(embeds), dtype=torch.long)
+        neg_idxs = torch.zeros(len(embeds), dtype=torch.long)
+        pos_idxs[target_idxs] = target_idxs[torch.randint(low=0,high=len(target_idxs),size=(len(target_idxs),))]
+        neg_idxs[target_idxs] = nontarget_idxs[torch.randint(low=0,high=len(target_idxs),size=(len(target_idxs),))]
+        pos_idxs[nontarget_idxs] = nontarget_idxs[torch.randint(low=0,high=len(nontarget_idxs),size=(len(nontarget_idxs),))]
+        neg_idxs[nontarget_idxs] = target_idxs[torch.randint(low=0,high=len(target_idxs),size=(len(nontarget_idxs),))]
+    elif 'semi' in pair_type:
+        dists = []
+        for embed in embeds:
+            dists.append(1-torch.cosine_similarity(embed, embeds))
+        dists = torch.stack(dists, dim=0)
+        pos_idxs = torch.zeros(len(embeds), dtype=torch.long)
+        neg_idxs = torch.zeros(len(embeds), dtype=torch.long)
+        pos_idxs[target_idxs] = target_idxs[torch.argmax(dists[target_idxs][:,target_idxs], dim=-1)]
+        pos_idxs[nontarget_idxs] = nontarget_idxs[torch.argmax(dists[nontarget_idxs][:,nontarget_idxs], dim=-1)]
+        pos_dists = dists[pos_idxs,pos_idxs]
+        neg_idxs[target_idxs] = nontarget_idxs[torch.argmin(dists[target_idxs][:,nontarget_idxs], dim=-1)]
+        neg_idxs[nontarget_idxs] = target_idxs[torch.argmin(dists[nontarget_idxs][:,target_idxs], dim=-1)]
+    elif 'hard' in pair_type:
+        dists = []
+        for embed in embeds:
+            dists.append(1-torch.cosine_similarity(embed, embeds))
+        dists = torch.stack(dists, dim=0)
+        pos_idxs = torch.zeros(len(embeds), dtype=torch.long)
+        neg_idxs = torch.zeros(len(embeds), dtype=torch.long)
+        pos_idxs[target_idxs] = target_idxs[torch.argmax(dists[target_idxs][:,target_idxs], dim=-1)]
+        pos_idxs[nontarget_idxs] = nontarget_idxs[torch.argmax(dists[nontarget_idxs][:,nontarget_idxs], dim=-1)]
+        neg_idxs[target_idxs] = nontarget_idxs[torch.argmin(dists[target_idxs][:,nontarget_idxs], dim=-1)]
+        neg_idxs[nontarget_idxs] = target_idxs[torch.argmin(dists[nontarget_idxs][:,target_idxs], dim=-1)]
+    return pos_idxs, neg_idxs
 
 
 def reset_trainer(trainer):

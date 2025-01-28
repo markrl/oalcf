@@ -24,13 +24,13 @@ def get_params():
                         help='debug flag')
     parser.add_argument('--test_val', default=False, action='store_true',
                         help='train and validate on validation set')
-    parser.add_argument('--monitor', type=str, default='train/loss',
+    parser.add_argument('--monitor', type=str, default='val/loss',
                         help='metric to monitor for callbacks')
     parser.add_argument('--mode', type=str, default='min',
                         help='min or max')
-    parser.add_argument('--patience', type=int, default=3,
+    parser.add_argument('--patience', type=int, default=15,
                         help='patience for callbacks')
-    parser.add_argument('--min_delta', type=int, default=0,
+    parser.add_argument('--min_delta', type=int, default=1e-3,
                         help='tolerance for callbacks')
     parser.add_argument('--seed', type=int, default=18792,
                         help='random seed')
@@ -56,12 +56,18 @@ def get_params():
                         help='learn the error weighting for DCF loss')
     parser.add_argument('--auto_weight', default=False, action='store_true',
                         help='automatically change cross-entropy weighting based on training distribution')
+    parser.add_argument('--auto_mult', type=float, default=10.0,
+                        help='target cost for inverse weighting')
     parser.add_argument('--cb_loss', default=False, action='store_true',
                         help='use class-balanced loss')
     parser.add_argument('--beta', type=float, default=0.999,
                         help='factor for cb loss')
     parser.add_argument('--gamma', type=float, default=2.0,
                         help='focus parameter for focal loss')
+    parser.add_argument('--contrast_loss', type=str, default='contrastive',
+                        help='contrastive loss type: `contrastive` or `triplet`')
+    parser.add_argument('--pair_type', type=str, default='rand',
+                        help='contrastive learning pairing method')
 
     # Model arguments
     parser.add_argument('--no_initial_bn', default=False, action='store_true',
@@ -84,6 +90,8 @@ def get_params():
                         help='apply gap filling')
     parser.add_argument('--ensemble', default=False, action='store_true',
                         help='use ensemble model')
+    parser.add_argument('--decision_threshold', type=float, default=0.5,
+                        help='threshold for converting posteriors to predictions')
 
     # Data arguments
     parser.add_argument('--feat_root', type=str, default='auto',
@@ -102,5 +110,7 @@ def get_params():
                         help='target class for LID task')
     parser.add_argument('--desired_target_percentage', type=float, default=None,
                         help='adjust training data to contain this fraction of target samples')
+    parser.add_argument('--env_name', type=str, default='test',
+                        help='environment specification')
 
     return parser.parse_args()

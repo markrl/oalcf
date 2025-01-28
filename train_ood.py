@@ -102,7 +102,7 @@ def main():
     
     # Update class weights if indicated
     if params.auto_weight and params.class_loss=='xent':
-        update_xent(module, data_module)
+            update_xent(module, data_module, params.auto_mult)
     # Delete old checkpoints
     os.system(f'rm -rf {ckpt_dir}')
     # Train on training corpus

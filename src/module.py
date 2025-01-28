@@ -9,6 +9,7 @@ from pytorch_lightning import LightningModule
 from src.model import CompClassModel
 from ensemble.ensemble_model import ArfModel
 from utils.utils import ContrastiveLoss, DcfLoss, ImlmLoss, aDcfLoss, FocalLoss, LearnableNLLLoss
+from utils.utils import choose_pair, choose_pos_neg
 
 from pdb import set_trace
 
@@ -73,18 +74,38 @@ class VtdModule(LightningModule):
             return
         
         if self.params.contrast_loss=='triplet':
-            x1,y1,x2,y2,x3,y3 = batch
-            embed1, y_hat, _ = self(x1)
-            embed2, y_hat2, _ = self(x2)
-            embed3, y_hat3, _ = self(x3)
-            class_loss = self.criterion(y_hat,y1)+self.criterion(y_hat2,y2)+self.criterion(y_hat3,y3)
-            contrast_loss = self.contrast_criterion(embed1,embed2,embed3)
+            if 'within_batch' in self.params.pair_type:
+                x1,y1 = batch
+                if torch.sum(y1)==0 or torch.sum(y1)==len(y1):
+                    return
+                embed1, y_hat, _ = self(x1)
+                pos_idxs, neg_idxs = choose_pos_neg(embed1, y1, self.params.pair_type)
+                embed2 = embed1[pos_idxs]
+                embed3 = embed1[neg_idxs]
+                class_loss = self.criterion(y_hat,y1)
+                contrast_loss = self.contrast_criterion(embed1,embed2,embed3)
+            else:
+                x1,y1,x2,y2,x3,y3 = batch
+                embed1, y_hat, _ = self(x1)
+                embed2, y_hat2, _ = self(x2)
+                embed3, y_hat3, _ = self(x3)
+                class_loss = self.criterion(y_hat,y1)+self.criterion(y_hat2,y2)+self.criterion(y_hat3,y3)
+                contrast_loss = self.contrast_criterion(embed1,embed2,embed3)
         else:
-            x1,y1,x2,y2 = batch
-            embed1, y_hat, _ = self(x1)
-            embed2, y_hat2, _ = self(x2)
-            class_loss = self.criterion(y_hat,y1)+self.criterion(y_hat2,y2)
-            contrast_loss = self.contrast_criterion(embed1,embed2,y1,y2)
+            if 'within_batch' in self.params.pair_type:
+                x1,y1 = batch
+                embed1, y_hat, _ = self(x1)
+                pair_idxs = choose_pair(embed1, y1, self.params.pair_type)
+                embed2 = embed1[pair_idxs]
+                y2 = y1[pair_idxs]
+                class_loss = self.criterion(y_hat,y1)
+                contrast_loss = self.contrast_criterion(embed1,embed2,y1,y2)
+            else:
+                x1,y1,x2,y2 = batch
+                embed1, y_hat, _ = self(x1)
+                embed2, y_hat2, _ = self(x2)
+                class_loss = self.criterion(y_hat,y1)+self.criterion(y_hat2,y2)
+                contrast_loss = self.contrast_criterion(embed1,embed2,y1,y2)
         loss = self.params.xent_weight*class_loss + contrast_loss
         if self.params.cb_loss:
             loss[y1==0] = loss[y1==0]*(1-self.beta)/(1-self.beta**self.n_nontarget)
