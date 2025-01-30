@@ -125,6 +125,8 @@ def main():
     module = VtdModule(params)
     if params.load_pretrained is not None:
         module.model.load_state_dict(torch.load(params.load_pretrained))
+        if not use_gpu:
+            module.model = module.model.to('cpu')
     # Instantiate trainer
     trainer = Trainer(
         callbacks=callbacks,
