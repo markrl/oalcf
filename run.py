@@ -124,9 +124,10 @@ def main():
     data_module = ImlDataModule(params)
     module = VtdModule(params)
     if params.load_pretrained is not None:
-        module.model.load_state_dict(torch.load(params.load_pretrained))
         if not use_gpu:
-            module.model = module.model.to('cpu')
+            module.model.load_state_dict(torch.load(params.load_pretrained, map_location=torch.device('cpu')))
+        else:
+            module.model.load_state_dict(torch.load(params.load_pretrained))
     # Instantiate trainer
     trainer = Trainer(
         callbacks=callbacks,
