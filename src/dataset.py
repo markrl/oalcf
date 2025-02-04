@@ -544,7 +544,7 @@ class ImlData(Dataset):
             anchor, anchor_label = self.base_ds[anchor_idx]
             if self.params.contrast_loss=='triplet':
                 if 'within_batch' in self.params.pair_type:
-                    return anchor, anchor_label
+                    return anchor, anchor_label, anchor_idx
                 elif self.params.pair_type=='rand':
                     if anchor_label==1:
                         pos_idx = self.target_idx_list[np.random.randint(low=0, high=len(self.target_idx_list))]
@@ -695,6 +695,50 @@ class ToggleNeighborsCallback(Callback):
                     embeds = [model.get_embed(batch[0]) for batch in loader]
         embeds = torch.cat(embeds, dim=0).cpu()
         return embeds
+    
+
+class HardClustersCallback(Callback):
+    def on_train_epoch_start(self, trainer, pl_module):
+        self.use_gpu = trainer.model.params.gpus > 0 and torch.cuda.is_available()
+        # Get embeddings
+        embeds = self.extract_embeds(trainer.datamodule, trainer.model)
+        # Cluster embeddings
+        clusters, centers = self.cluster_embeds(embeds)
+        # Get distances
+        dists = self.get_dists(embeds, centers)
+        # Update clusters and distances
+        trainer.datamodule.data_train.clusters = clusters
+        trainer.datamodule.data_train.compute_extreme_clusters(dists)
+
+    def get_dists(self, samples, clusters):
+        all_dists = []
+        for cluster in clusters:
+            dists = 1-torch.cosine_similarity(cluster, samples)
+            all_dists.append(dists)
+        return torch.stack(all_dists, dim=1)
+
+    def extract_embeds(self, data_module, module):
+        model = module.model
+        model.eval()
+        loader = data_module.val_dataloader()
+        with torch.no_grad():
+            if self.ensemble:
+                embeds = [model(batch[0]) for batch in loader]
+            else:
+                if self.use_gpu:
+                    model = model.cuda()
+                    embeds = [model.get_embed(batch[0].cuda()) for batch in loader]
+                else:
+                    embeds = [model.get_embed(batch[0]) for batch in loader]
+        embeds = torch.cat(embeds, dim=0).cpu()
+        return embeds
+    
+    def cluster_embeds(self, embeds):
+        km = KMeans(n_clusters=4, n_init='auto')
+        self.cluster.fit(embeds.numpy())
+        centers = self.cluster.cluster_centers_
+        return
+
 
 if __name__=='__main__':
     from params import get_params

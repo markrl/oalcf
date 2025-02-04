@@ -10,7 +10,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 
 from src.module import VtdModule
 from src.dataset import ImlDataModule
-from src.dataset import IncOffsetCallback, ToggleNeighborsCallback
+from src.dataset import IncOffsetCallback, ToggleNeighborsCallback, HardClustersCallback
 from src.params import get_params
 from utils.query_strategies import StrategyManager
 from utils.corrective_feedback import FeedbackSimulator
@@ -82,6 +82,8 @@ def main():
     if os.path.exists(out_dir):
         os.system(f'rm -rf {out_dir}')
     os.mkdir(out_dir)
+    os.mkdir(os.path.join(out_dir, 'training_idxs'))
+    idx_path_template = os.path.join(out_dir, 'training_idxs', 'se{:03d}_idxs.csv')
     # Save command
     command = ' '.join([os.path.basename(sys.executable)] + sys.argv)
     with open(os.path.join(out_dir, 'command.txt'), 'w') as f:
@@ -119,6 +121,8 @@ def main():
         callbacks.append(IncOffsetCallback())
     elif params.pair_type=='neighbors':
         callbacks.append(ToggleNeighborsCallback())
+    elif params.pair_type=='within_batch_clusters':
+        callbacks.append(HardClustersCallback())
     
     # Initialize lightning data module and lightning module
     data_module = ImlDataModule(params)
@@ -162,6 +166,7 @@ def main():
     if params.load_best:
         os.system(f'rm -rf {ckpt_dir}/best*.ckpt') 
     # Train on bootstrap corpus
+    module.idx_path = idx_path_template.format(999)
     trainer.fit(module, data_module)
 
     ### IML LOOP ###
@@ -289,6 +294,7 @@ def main():
         if params.reset_weights:
             module.model.load_state_dict(base_state_dict)
         # Train model on adaptation pool
+        module.idx_path = idx_path_template.format(data_module.current_batch)
         fit_start_time = time.monotonic()
         trainer.fit(module, data_module)
         total_training_time += time.monotonic()-fit_start_time
@@ -326,6 +332,7 @@ def main():
                 if params.reset_weights:
                     module.model.load_state_dict(base_state_dict)
                 # Train model on adaptation pool
+                module.idx_path = 'cf_' + idx_path_template.format(data_module.current_batch)
                 fit_start_time = time.monotonic()
                 trainer.fit(module, data_module)
                 total_training_time += time.monotonic()-fit_start_time

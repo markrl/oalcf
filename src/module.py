@@ -60,6 +60,7 @@ class VtdModule(LightningModule):
             self.n_nontarget = 0
             self.beta = params.beta
         self.postquential = False
+        self.idx_path = ''
 
     def forward(self, x):
         return self.model(x)
@@ -75,15 +76,21 @@ class VtdModule(LightningModule):
         
         if self.params.contrast_loss=='triplet':
             if 'within_batch' in self.params.pair_type:
-                x1,y1 = batch
+                x1,y1,idxs = batch
                 if torch.sum(y1)==0 or torch.sum(y1)==len(y1):
-                    return
+                    return None
                 embed1, y_hat, _ = self(x1)
                 pos_idxs, neg_idxs = choose_pos_neg(embed1, y1, self.params.pair_type)
                 embed2 = embed1[pos_idxs]
                 embed3 = embed1[neg_idxs]
                 class_loss = self.criterion(y_hat,y1)
                 contrast_loss = self.contrast_criterion(embed1,embed2,embed3)
+                if self.params.save_pairs:
+                    with open(self.idx_path, 'a') as f:
+                        idxs2 = idxs[pos_idxs]
+                        idxs3 = idxs[neg_idxs]
+                        for i1,i2,i3 in zip(idxs,idxs2,idxs3):
+                            f.write(f'{i1},{i2},{i3}\n')
             else:
                 x1,y1,x2,y2,x3,y3 = batch
                 embed1, y_hat, _ = self(x1)

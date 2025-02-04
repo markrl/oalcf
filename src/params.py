@@ -72,6 +72,8 @@ def get_params():
                         help='path to pretrained model state dictionary')
     parser.add_argument('--save_state_dict', default=False, action='store_true',
                         help='save model state_dict')
+    parser.add_argument('--save_pairs', default=False, action='store_true',
+                        help='record the training pairs/triplets that are used')
 
     # OAL-CF arguments
     parser.add_argument('--al_methods', type=str, default='smax',
