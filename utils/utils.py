@@ -215,7 +215,7 @@ def choose_pos_neg(embeds, labels, pair_type):
         pos_idxs = torch.zeros(len(embeds), dtype=torch.long)
         neg_idxs = torch.zeros(len(embeds), dtype=torch.long)
         pos_idxs[target_idxs] = target_idxs[torch.randint(low=0,high=len(target_idxs),size=(len(target_idxs),))]
-        neg_idxs[target_idxs] = nontarget_idxs[torch.randint(low=0,high=len(target_idxs),size=(len(target_idxs),))]
+        neg_idxs[target_idxs] = nontarget_idxs[torch.randint(low=0,high=len(nontarget_idxs),size=(len(target_idxs),))]
         pos_idxs[nontarget_idxs] = nontarget_idxs[torch.randint(low=0,high=len(nontarget_idxs),size=(len(nontarget_idxs),))]
         neg_idxs[nontarget_idxs] = target_idxs[torch.randint(low=0,high=len(target_idxs),size=(len(nontarget_idxs),))]
     elif 'semi' in pair_type:

@@ -7,7 +7,6 @@ from pytorch_lightning import LightningDataModule
 from pytorch_lightning.callbacks import Callback
 import numpy as np
 from sklearn.cluster import KMeans
-from statistics import mean
 from copy import deepcopy
 
 from pdb import set_trace
@@ -97,7 +96,7 @@ class ImlDataModule(LightningDataModule):
         self.data_train.activate_samples(idxs)
         self.train_active_order[self.current_batch] = idxs
         self.data_train.limit_data(self.data_test)
-        if self.params.pair_type=='rand' and self.params.contrast_loss=='triplet':
+        if self.params.pair_type=='clusters' or (self.params.pair_type=='rand' and self.params.contrast_loss=='triplet'):
             self.data_train.update_class_idx_lists()
 
     def get_class_counts(self):
@@ -187,7 +186,7 @@ class ImlDataModule(LightningDataModule):
             print('Not a valid memory buffer')
             exit()
         self.data_train.limit_data(self.data_test)
-        if self.params.pair_type=='rand' and self.params.contrast_loss=='triplet':
+        if self.params.pair_type=='clusters' or (self.params.pair_type=='rand' and self.params.contrast_loss=='triplet'):
             self.data_train.update_class_idx_lists()
 
     def forget_samples(self):
@@ -468,6 +467,8 @@ class ImlData(Dataset):
             elif params.pair_type=='neighbors':
                 self.close_neighbors = True
                 self.extremes = {}
+            elif params.pair_type=='clusters':
+                self.extremes = {}
             
             if params.limit_train_size is not None:
                 self.limit_train_size = params.limit_train_size
@@ -555,6 +556,11 @@ class ImlData(Dataset):
                 elif self.params.pair_type=='neighbors':
                     pos_idx = idx_converter[self.extremes[index][False]]
                     neg_idx = idx_converter[self.extremes[index][True]]
+                elif self.params.pair_type=='clusters':
+                    rand_idx = np.random.choice(self.clusters[self.extremes[index][False]])
+                    pos_idx = idx_converter[rand_idx]
+                    rand_idx = np.random.choice(self.clusters[self.extremes[index][True]])
+                    neg_idx = idx_converter[rand_idx]
                 pos, pos_label = self.base_ds[pos_idx]
                 neg, neg_label = self.base_ds[neg_idx]
                 return anchor, anchor_label, pos, pos_label, neg, neg_label
@@ -639,6 +645,21 @@ class ImlData(Dataset):
                 # else:
                 #     self.extremes[ii][True] = np.flipud(sorted_idxs)[np.where(1-same_labels[np.flipud(sorted_idxs)])[0][0]]
 
+    def compute_extreme_clusters(self, dists):
+        cluster_label_list = []
+        for kk in range(len(self.clusters)):
+            cluster_label_list.append([self.get_label(ii) for ii in self.clusters[kk]])
+        for ii,dist in enumerate(dists):
+            sample_label = self.get_label(ii)
+            sorted_dist_idxs = np.argsort(dist)
+            same_cluster_idx = -1
+            while sample_label not in cluster_label_list[sorted_dist_idxs[same_cluster_idx]]:
+                same_cluster_idx -= 1
+            diff_cluster_idx = 0
+            while 1-sample_label not in cluster_label_list[sorted_dist_idxs[diff_cluster_idx]]:
+                diff_cluster_idx += 1
+            self.extremes[ii] = {False:sorted_dist_idxs[same_cluster_idx], True:sorted_dist_idxs[diff_cluster_idx]}
+
     def cat_data(self):
         feats = []
         for idx in self.active_idxs:
@@ -708,7 +729,7 @@ class HardClustersCallback(Callback):
         dists = self.get_dists(embeds, centers)
         # Update clusters and distances
         trainer.datamodule.data_train.clusters = clusters
-        trainer.datamodule.data_train.compute_extreme_clusters(dists)
+        trainer.datamodule.data_train.compute_extreme_clusters(dists.numpy())
 
     def get_dists(self, samples, clusters):
         all_dists = []
@@ -722,22 +743,22 @@ class HardClustersCallback(Callback):
         model.eval()
         loader = data_module.val_dataloader()
         with torch.no_grad():
-            if self.ensemble:
-                embeds = [model(batch[0]) for batch in loader]
+            if self.use_gpu:
+                model = model.cuda()
+                embeds = [model.get_embed(batch[0].cuda()) for batch in loader]
             else:
-                if self.use_gpu:
-                    model = model.cuda()
-                    embeds = [model.get_embed(batch[0].cuda()) for batch in loader]
-                else:
-                    embeds = [model.get_embed(batch[0]) for batch in loader]
+                embeds = [model.get_embed(batch[0]) for batch in loader]
         embeds = torch.cat(embeds, dim=0).cpu()
         return embeds
     
     def cluster_embeds(self, embeds):
         km = KMeans(n_clusters=4, n_init='auto')
-        self.cluster.fit(embeds.numpy())
-        centers = self.cluster.cluster_centers_
-        return
+        preds = km.fit_predict(embeds.numpy())
+        centers = torch.tensor(km.cluster_centers_)
+        clusters = {ii:[] for ii in range(len(km.cluster_centers_))}
+        for ii,pred in enumerate(preds):
+            clusters[pred].append(ii)
+        return clusters, centers
 
 
 if __name__=='__main__':

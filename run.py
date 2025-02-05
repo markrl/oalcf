@@ -121,7 +121,7 @@ def main():
         callbacks.append(IncOffsetCallback())
     elif params.pair_type=='neighbors':
         callbacks.append(ToggleNeighborsCallback())
-    elif params.pair_type=='within_batch_clusters':
+    elif params.pair_type=='clusters':
         callbacks.append(HardClustersCallback())
     
     # Initialize lightning data module and lightning module
