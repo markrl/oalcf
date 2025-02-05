@@ -468,6 +468,7 @@ class ImlData(Dataset):
                 self.close_neighbors = True
                 self.extremes = {}
             elif params.pair_type=='clusters':
+                self.close_neighbors = True
                 self.extremes = {}
             
             if params.limit_train_size is not None:
@@ -557,13 +558,17 @@ class ImlData(Dataset):
                     pos_idx = idx_converter[self.extremes[index][False]]
                     neg_idx = idx_converter[self.extremes[index][True]]
                 elif self.params.pair_type=='clusters':
+                    # rand_idx = np.random.choice(np.where(np.array(self.cluster_label_list[self.extremes[index][False]])==anchor_label)[0])
+                    # rand_idx = self.clusters[self.extremes[index][False]][rand_idx]
                     rand_idx = np.random.choice(self.clusters[self.extremes[index][False]])
                     pos_idx = idx_converter[rand_idx]
+                    # rand_idx = np.random.choice(np.where(np.array(self.cluster_label_list[self.extremes[index][True]])!=anchor_label)[0])
+                    # rand_idx = self.clusters[self.extremes[index][True]][rand_idx]
                     rand_idx = np.random.choice(self.clusters[self.extremes[index][True]])
                     neg_idx = idx_converter[rand_idx]
                 pos, pos_label = self.base_ds[pos_idx]
                 neg, neg_label = self.base_ds[neg_idx]
-                return anchor, anchor_label, pos, pos_label, neg, neg_label
+                return anchor, anchor_label, pos, pos_label, neg, neg_label, anchor_idx, pos_idx, neg_idx
             else:
                 idx1 = idx_converter[index]
                 feat1, label1 = self.base_ds[idx1]
@@ -573,6 +578,9 @@ class ImlData(Dataset):
                     idx2 = idx_converter[self.choose_pair_idx(index)]
                 elif self.params.pair_type=='neighbors':
                     idx2 = idx_converter[self.extremes[index][self.close_neighbors]]
+                elif self.params.pair_type=='clusters':
+                    rand_idx = np.random.choice(self.clusters[self.extremes[index][self.close_neighbors]])
+                    idx2 = idx_converter[rand_idx]
                 elif 'within_batch' in self.params.pair_type:
                     return feat1, label1
                 feat2, label2 = self.base_ds[idx2]
@@ -646,17 +654,17 @@ class ImlData(Dataset):
                 #     self.extremes[ii][True] = np.flipud(sorted_idxs)[np.where(1-same_labels[np.flipud(sorted_idxs)])[0][0]]
 
     def compute_extreme_clusters(self, dists):
-        cluster_label_list = []
+        self.cluster_label_list = []
         for kk in range(len(self.clusters)):
-            cluster_label_list.append([self.get_label(ii) for ii in self.clusters[kk]])
+            self.cluster_label_list.append([self.get_label(ii) for ii in self.clusters[kk]])
         for ii,dist in enumerate(dists):
             sample_label = self.get_label(ii)
             sorted_dist_idxs = np.argsort(dist)
             same_cluster_idx = -1
-            while sample_label not in cluster_label_list[sorted_dist_idxs[same_cluster_idx]]:
+            while sample_label not in self.cluster_label_list[sorted_dist_idxs[same_cluster_idx]]:
                 same_cluster_idx -= 1
             diff_cluster_idx = 0
-            while 1-sample_label not in cluster_label_list[sorted_dist_idxs[diff_cluster_idx]]:
+            while 1-sample_label not in self.cluster_label_list[sorted_dist_idxs[diff_cluster_idx]]:
                 diff_cluster_idx += 1
             self.extremes[ii] = {False:sorted_dist_idxs[same_cluster_idx], True:sorted_dist_idxs[diff_cluster_idx]}
 
@@ -680,13 +688,12 @@ class ToggleNeighborsCallback(Callback):
     def on_train_epoch_start(self, trainer, pl_module):
         self.use_gpu = trainer.model.params.gpus > 0 and torch.cuda.is_available()
         self.ensemble = trainer.model.params.ensemble
-        if trainer.datamodule.data_train.close_neighbors:
-            # Get embeddings
-            embeds = self.extract_embeds(trainer.datamodule, trainer.model)
-            # Get distances
-            dists = self.get_dists(embeds)
-            # Compute extremes
-            trainer.datamodule.data_train.compute_extremes(dists.numpy())
+        # Get embeddings
+        embeds = self.extract_embeds(trainer.datamodule, trainer.model)
+        # Get distances
+        dists = self.get_dists(embeds)
+        # Compute extremes
+        trainer.datamodule.data_train.compute_extremes(dists.numpy())
         trainer.datamodule.data_train.close_neighbors = not trainer.datamodule.data_train.close_neighbors
 
     def on_fit_start(self, trainer, pl_module):
@@ -729,7 +736,11 @@ class HardClustersCallback(Callback):
         dists = self.get_dists(embeds, centers)
         # Update clusters and distances
         trainer.datamodule.data_train.clusters = clusters
+        trainer.datamodule.data_train.close_neighbors = not trainer.datamodule.data_train.close_neighbors
         trainer.datamodule.data_train.compute_extreme_clusters(dists.numpy())
+
+    def on_fit_start(self, trainer, pl_module):
+        trainer.datamodule.data_train.close_neighbors = True
 
     def get_dists(self, samples, clusters):
         all_dists = []

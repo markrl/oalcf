@@ -92,12 +92,18 @@ class VtdModule(LightningModule):
                         for i1,i2,i3 in zip(idxs,idxs2,idxs3):
                             f.write(f'{i1},{i2},{i3}\n')
             else:
-                x1,y1,x2,y2,x3,y3 = batch
+                x1,y1,x2,y2,x3,y3,idxs1,idxs2,idxs3 = batch
+                # if torch.any(y1!=y2) or torch.any(y1==y3):
+                #     set_trace()
                 embed1, y_hat, _ = self(x1)
                 embed2, y_hat2, _ = self(x2)
                 embed3, y_hat3, _ = self(x3)
                 class_loss = self.criterion(y_hat,y1)+self.criterion(y_hat2,y2)+self.criterion(y_hat3,y3)
                 contrast_loss = self.contrast_criterion(embed1,embed2,embed3)
+                if self.params.save_pairs:
+                    with open(self.idx_path, 'a') as f:
+                        for i1,i2,i3 in zip(idxs1,idxs2,idxs3):
+                            f.write(f'{i1},{i2},{i3}\n')
         else:
             if 'within_batch' in self.params.pair_type:
                 x1,y1 = batch
