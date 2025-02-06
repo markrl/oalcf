@@ -558,13 +558,13 @@ class ImlData(Dataset):
                     pos_idx = idx_converter[self.extremes[index][False]]
                     neg_idx = idx_converter[self.extremes[index][True]]
                 elif self.params.pair_type=='clusters':
-                    # rand_idx = np.random.choice(np.where(np.array(self.cluster_label_list[self.extremes[index][False]])==anchor_label)[0])
-                    # rand_idx = self.clusters[self.extremes[index][False]][rand_idx]
-                    rand_idx = np.random.choice(self.clusters[self.extremes[index][False]])
+                    rand_idx = np.random.choice(np.where(np.array(self.cluster_label_list[self.extremes[index][False]])==anchor_label)[0])
+                    rand_idx = self.clusters[self.extremes[index][False]][rand_idx]
+                    # rand_idx = np.random.choice(self.clusters[self.extremes[index][False]])
                     pos_idx = idx_converter[rand_idx]
-                    # rand_idx = np.random.choice(np.where(np.array(self.cluster_label_list[self.extremes[index][True]])!=anchor_label)[0])
-                    # rand_idx = self.clusters[self.extremes[index][True]][rand_idx]
-                    rand_idx = np.random.choice(self.clusters[self.extremes[index][True]])
+                    rand_idx = np.random.choice(np.where(np.array(self.cluster_label_list[self.extremes[index][True]])!=anchor_label)[0])
+                    rand_idx = self.clusters[self.extremes[index][True]][rand_idx]
+                    # rand_idx = np.random.choice(self.clusters[self.extremes[index][True]])
                     neg_idx = idx_converter[rand_idx]
                 pos, pos_label = self.base_ds[pos_idx]
                 neg, neg_label = self.base_ds[neg_idx]
