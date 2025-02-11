@@ -579,7 +579,13 @@ class ImlData(Dataset):
                 elif self.params.pair_type=='neighbors':
                     idx2 = idx_converter[self.extremes[index][self.close_neighbors]]
                 elif self.params.pair_type=='clusters':
-                    rand_idx = np.random.choice(self.clusters[self.extremes[index][self.close_neighbors]])
+                    # rand_idx = np.random.choice(self.clusters[self.extremes[index][self.close_neighbors]])
+                    if self.close_neighbors:
+                        rand_idx = np.random.choice(np.where(np.array(self.cluster_label_list[self.extremes[index][True]])!=label1)[0])
+                        rand_idx = self.clusters[self.extremes[index][True]][rand_idx]
+                    else:
+                        rand_idx = np.random.choice(np.where(np.array(self.cluster_label_list[self.extremes[index][False]])==label1)[0])
+                        rand_idx = self.clusters[self.extremes[index][False]][rand_idx]
                     idx2 = idx_converter[rand_idx]
                     # print(index, self.clusters[self.extremes[index][self.close_neighbors]], rand_idx, idx2)
                 elif 'within_batch' in self.params.pair_type:
