@@ -8,7 +8,8 @@ from pytorch_lightning import LightningModule
 
 from src.model import CompClassModel
 from ensemble.ensemble_model import ArfModel
-from utils.utils import ContrastiveLoss, DcfLoss, ImlmLoss, aDcfLoss, FocalLoss, LearnableNLLLoss
+from utils.utils import ContrastiveLoss, DcfLoss, ImlmLoss, aDcfLoss
+from utils.utils import FocalLoss, LearnableNLLLoss, CenterLoss
 from utils.utils import choose_pair, choose_pos_neg
 
 from pdb import set_trace
@@ -42,6 +43,8 @@ class VtdModule(LightningModule):
             self.contrast_criterion = ContrastiveLoss()
         elif params.contrast_loss=='triplet':
             self.contrast_criterion = nn.TripletMarginWithDistanceLoss(distance_function=lambda x, y: 1.0 - F.cosine_similarity(x, y))
+        if params.center_loss_weight>0:
+            self.center_criterion = CenterLoss(2, params.embed_dim)
         self.params = params
         self.save_hyperparameters()
         self.val_fns = 0
@@ -93,8 +96,6 @@ class VtdModule(LightningModule):
                             f.write(f'{i1},{i2},{i3}\n')
             else:
                 x1,y1,x2,y2,x3,y3,idxs1,idxs2,idxs3 = batch
-                # if torch.any(y1!=y2) or torch.any(y1==y3):
-                #     set_trace()
                 embed1, y_hat, _ = self(x1)
                 embed2, y_hat2, _ = self(x2)
                 embed3, y_hat3, _ = self(x3)
@@ -106,7 +107,7 @@ class VtdModule(LightningModule):
                             f.write(f'{i1},{i2},{i3}\n')
         else:
             if 'within_batch' in self.params.pair_type:
-                x1,y1 = batch
+                x1,y1,idxs = batch
                 embed1, y_hat, _ = self(x1)
                 pair_idxs = choose_pair(embed1, y1, self.params.pair_type)
                 embed2 = embed1[pair_idxs]
@@ -114,12 +115,18 @@ class VtdModule(LightningModule):
                 class_loss = self.criterion(y_hat,y1)
                 contrast_loss = self.contrast_criterion(embed1,embed2,y1,y2)
             else:
-                x1,y1,x2,y2 = batch
+                x1,y1,x2,y2,idxs,pair_idxs = batch
                 embed1, y_hat, _ = self(x1)
                 embed2, y_hat2, _ = self(x2)
                 class_loss = self.criterion(y_hat,y1)+self.criterion(y_hat2,y2)
                 contrast_loss = self.contrast_criterion(embed1,embed2,y1,y2)
+            if self.params.save_pairs:
+                with open(self.idx_path, 'a') as f:
+                    for i1,i2,i3 in zip(idxs,pair_idxs,pair_idxs):
+                        f.write(f'{i1},{i2},{i3}\n')
         loss = self.params.xent_weight*class_loss + contrast_loss
+        if self.params.center_loss_weight>0:
+            loss = loss + self.params.center_loss_weight*self.center_criterion(embed1,y1)
         if self.params.cb_loss:
             loss[y1==0] = loss[y1==0]*(1-self.beta)/(1-self.beta**self.n_nontarget)
             loss[y1==1] = loss[y1==1]*(1-self.beta)/(1-self.beta**self.n_target)

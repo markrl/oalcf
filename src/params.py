@@ -64,6 +64,8 @@ def get_params():
                         help='target cost for inverse weighting')
     parser.add_argument('--cb_loss', default=False, action='store_true',
                         help='use class-balanced loss')
+    parser.add_argument('--center_loss_weight', type=float, default=0.0,
+                        help='center loss weighting')
     parser.add_argument('--beta', type=float, default=0.999,
                         help='factor for cb loss')
     parser.add_argument('--gamma', type=float, default=2.0,

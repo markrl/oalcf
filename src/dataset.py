@@ -581,10 +581,11 @@ class ImlData(Dataset):
                 elif self.params.pair_type=='clusters':
                     rand_idx = np.random.choice(self.clusters[self.extremes[index][self.close_neighbors]])
                     idx2 = idx_converter[rand_idx]
+                    # print(index, self.clusters[self.extremes[index][self.close_neighbors]], rand_idx, idx2)
                 elif 'within_batch' in self.params.pair_type:
-                    return feat1, label1
+                    return feat1, label1, idx1
                 feat2, label2 = self.base_ds[idx2]
-                return feat1, label1, feat2, label2
+                return feat1, label1, feat2, label2, idx1, idx2
         else:
             idx1 = idx_converter[index]
             feat1, label1 = self.base_ds[idx1]
@@ -667,6 +668,9 @@ class ImlData(Dataset):
             while 1-sample_label not in self.cluster_label_list[sorted_dist_idxs[diff_cluster_idx]]:
                 diff_cluster_idx += 1
             self.extremes[ii] = {False:sorted_dist_idxs[same_cluster_idx], True:sorted_dist_idxs[diff_cluster_idx]}
+        # print(self.extremes)
+        # print(self.clusters)
+        # print(self.cluster_label_list)
 
     def cat_data(self):
         feats = []
@@ -736,8 +740,8 @@ class HardClustersCallback(Callback):
         dists = self.get_dists(embeds, centers)
         # Update clusters and distances
         trainer.datamodule.data_train.clusters = clusters
-        trainer.datamodule.data_train.close_neighbors = not trainer.datamodule.data_train.close_neighbors
         trainer.datamodule.data_train.compute_extreme_clusters(dists.numpy())
+        trainer.datamodule.data_train.close_neighbors = not trainer.datamodule.data_train.close_neighbors
 
     def on_fit_start(self, trainer, pl_module):
         trainer.datamodule.data_train.close_neighbors = True
@@ -763,7 +767,7 @@ class HardClustersCallback(Callback):
         return embeds
     
     def cluster_embeds(self, embeds):
-        km = KMeans(n_clusters=4, n_init='auto')
+        km = KMeans(n_clusters=8, n_init='auto')
         preds = km.fit_predict(embeds.numpy())
         centers = torch.tensor(km.cluster_centers_)
         clusters = {ii:[] for ii in range(len(km.cluster_centers_))}
@@ -785,5 +789,5 @@ if __name__=='__main__':
     # data_module.transfer_samples([3,5])
     data_module.transfer_samples(list(np.arange(719)))
     print(data_module.get_current_session_name())
-    data_module.ds.get_class_balance()
+    # data_module.ds.get_class_balance()
     print(len(data_module.ds), 'samples')

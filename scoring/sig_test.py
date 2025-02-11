@@ -8,6 +8,33 @@ import pandas as pd
 from pdb import set_trace
 
 def main(run1, run2, prefix=''):
+    TRAIN_SIZES = {'apartment_mc19': 835200,
+                   'hotel_mc19': 835200,
+                   'office_mc13': 835200,
+                   'rm1_mc20':1300320,
+                   'rm2_mc16':1300320,
+                   'rm3_mc16':1300320,
+                   'rm4_mc20':1300320,
+                   'bas':982800,
+                   'ckb':666720,
+                   'cnh':797040,
+                   'cv':666720,
+                   'dv':797040,
+                   'ha':982800,
+                   'hi':797040,
+                   'hy-AM':666720,
+                   'id':1363680,
+                   'kmr':666720,
+                   'ky':666720,
+                   'ml':797040,
+                   'mr':797040,
+                   'or':797040,
+                   'skr':797040,
+                   'sr':666720,
+                   'tt':666720,
+                   'vi':1363680,
+                   'yo':982800,
+                   'yue':1363680}
     paths1 = []
     for dd in run1.split(','):
         if 'extra' in dd:
@@ -24,10 +51,14 @@ def main(run1, run2, prefix=''):
             paths2 += glob.glob(os.path.join(dd, '*', 'scores.csv'))
     paths2.sort()
 
-    n_boot = 8
     dcfs1, fnrs1, fprs1, imlms1 = [], [], [], []
     for pp in paths1:
         sheet = pd.read_csv(pp)
+        if 'pml' in pp:
+            env = pp.split('/')[-2]
+            n_boot = TRAIN_SIZES[env]
+        else:
+            n_boot = 8
         n_samples = n_boot + np.sum(sheet['n_al'])
         fns = np.sum(sheet[prefix+'fns'])
         fps = np.sum(sheet[prefix+'fps'])
@@ -55,6 +86,11 @@ def main(run1, run2, prefix=''):
     dcfs2, fnrs2, fprs2, imlms2 = [], [], [], []
     for pp in paths2:
         sheet = pd.read_csv(pp)
+        if 'pml' in pp:
+            env = pp.split('/')[-2]
+            n_boot = TRAIN_SIZES[env]
+        else:
+            n_boot = 8
         n_samples = n_boot + np.sum(sheet['n_al'])
         fns = np.sum(sheet[prefix+'fns'])
         fps = np.sum(sheet[prefix+'fps'])
@@ -86,8 +122,8 @@ def main(run1, run2, prefix=''):
     fpr_pval_wilcoxon = wilcoxon(fprs1, fprs2, alternative='less', method='approx').pvalue
     imlm_pval_wilcoxon = wilcoxon(imlms1, imlms2, alternative='less', method='approx').pvalue
     print('\t\tDCF\tFNR\tFPR\tIMLM')
-    print(f'T-test\t\t{dcf_pval_ttest:.4f}\t{fnr_pval_ttest:.4f}\t{fpr_pval_ttest:.4f}\t{imlm_pval_ttest:.4f}')
-    print(f'Wilcoxon\t{dcf_pval_wilcoxon:.4f}\t{fnr_pval_wilcoxon:.4f}\t{fpr_pval_wilcoxon:.4f}\t{imlm_pval_wilcoxon:.4f}')
+    print(f'T-test\t\t{dcf_pval_ttest:.1e}\t{fnr_pval_ttest:.1e}\t{fpr_pval_ttest:.1e}\t{imlm_pval_ttest:.1e}')
+    print(f'Wilcoxon\t{dcf_pval_wilcoxon:.1e}\t{fnr_pval_wilcoxon:.1e}\t{fpr_pval_wilcoxon:.1e}\t{imlm_pval_wilcoxon:.1e}')
 
 
 if __name__=='__main__':

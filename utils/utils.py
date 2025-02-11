@@ -45,6 +45,30 @@ def cosine_distance(x0, x1):
     return 1 - F.cosine_similarity(x0, x1, dim=1)
 
 
+class CenterLoss(nn.Module):
+    def __init__(self, num_classes, feat_dim, alpha=0.5):
+        super(CenterLoss, self).__init__()
+        self.num_classes = num_classes
+        self.feat_dim = feat_dim
+        self.alpha = alpha
+        self.centers = nn.Parameter(torch.randn(num_classes, feat_dim))
+
+    def forward(self, x, labels):
+        centers_batch = self.centers[labels]
+        dist = torch.pow(x - centers_batch, 2).sum(dim=1).sqrt()
+        loss = dist.mean() / 2.0
+
+        # Update centers
+        with torch.no_grad():
+            for i in range(self.num_classes):
+                mask = labels == i
+                if mask.sum() > 0:
+                    center_delta = (x[mask] - self.centers[i]).mean(dim=0)
+                    self.centers[i] = self.centers[i] + self.alpha * center_delta
+
+        return loss
+
+
 class DcfLoss(torch.nn.Module):
     def __init__(self, fnr_weight=0.75, smax_weight=0, learn_mult=False, learn_error_weight=False):
         super(DcfLoss, self).__init__()
